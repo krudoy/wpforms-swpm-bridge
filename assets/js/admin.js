@@ -25,6 +25,7 @@
             $(document).on('wpformsFieldAdd wpformsFieldDelete wpformsFieldUpdate wpformsSaved', this.refreshFieldMapping);
             $(document).on('change', '.swpm-field-select', this.toggleCustomFieldInput);
             $(document).on('change', '#swpm-show-field-ids', this.toggleFieldIds);
+            $(document).on('change', '#swpm-field-sort', this.handleSortChange);
         },
         
         toggleIntegrationSettings: function() {
@@ -197,6 +198,43 @@
         toggleFieldIds: function() {
             var show = $('#swpm-show-field-ids').is(':checked');
             $('.swpm-field-id').toggle(show);
+        },
+        
+        handleSortChange: function() {
+            var sortBy = $('#swpm-field-sort').val();
+            var $tbody = $('#swpm-field-mapping table tbody');
+            
+            if (!$tbody.length) return;
+            
+            var $rows = $tbody.find('tr').get();
+            
+            $rows.sort(function(a, b) {
+                var $a = $(a);
+                var $b = $(b);
+                
+                if (sortBy === 'id') {
+                    var idA = $a.find('.swpm-field-id code').text() || '0';
+                    var idB = $b.find('.swpm-field-id code').text() || '0';
+                    // Extract numeric part for proper sorting
+                    var numA = parseInt(idA.replace(/\D/g, '')) || 0;
+                    var numB = parseInt(idB.replace(/\D/g, '')) || 0;
+                    return numA - numB;
+                } else if (sortBy === 'label') {
+                    var labelA = $a.find('td:first').text().toLowerCase();
+                    var labelB = $b.find('td:first').text().toLowerCase();
+                    return labelA.localeCompare(labelB);
+                } else if (sortBy === 'form') {
+                    // Form order - use data attribute if available
+                    var orderA = $a.data('form-order') || 0;
+                    var orderB = $b.data('form-order') || 0;
+                    return orderA - orderB;
+                }
+                return 0;
+            });
+            
+            $.each($rows, function(idx, row) {
+                $tbody.append(row);
+            });
         }
     };
 

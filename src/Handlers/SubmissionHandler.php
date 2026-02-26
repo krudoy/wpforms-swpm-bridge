@@ -212,11 +212,20 @@ class SubmissionHandler {
             }
             
             // Handle split address fields (e.g., "1_address1", "1_city", "1_state", "1_postal", "1_country")
-            if (preg_match('/^(\d+)_(address1|address2|city|state|postal|country)$/', (string) $mappingKey, $matches)) {
+            if (preg_match('/^(\d+)_(street|city|state|postal|country)$/', (string) $mappingKey, $matches)) {
                 $fieldId = $matches[1];
                 $subField = $matches[2];
                 
-                if (isset($fields[$fieldId][$subField])) {
+                if ($subField === 'street') {
+                    // Combine address1 and address2
+                    $address1 = $fields[$fieldId]['address1'] ?? '';
+                    $address2 = $fields[$fieldId]['address2'] ?? '';
+                    $combined = trim($address1);
+                    if (!empty($address2)) {
+                        $combined .= ', ' . trim($address2);
+                    }
+                    $data[$swpmField] = $combined;
+                } elseif (isset($fields[$fieldId][$subField])) {
                     $data[$swpmField] = $fields[$fieldId][$subField];
                 }
                 continue;
@@ -285,11 +294,20 @@ class SubmissionHandler {
             }
             
             // Handle split address fields
-            if (preg_match('/^(\d+)_(address1|address2|city|state|postal|country)$/', (string) $mappingKey, $matches)) {
+            if (preg_match('/^(\d+)_(street|city|state|postal|country)$/', (string) $mappingKey, $matches)) {
                 $fieldId = $matches[1];
                 $subField = $matches[2];
                 
-                if (isset($postFields[$fieldId][$subField])) {
+                if ($subField === 'street') {
+                    // Combine address1 and address2
+                    $address1 = $postFields[$fieldId]['address1'] ?? '';
+                    $address2 = $postFields[$fieldId]['address2'] ?? '';
+                    $combined = trim($address1);
+                    if (!empty($address2)) {
+                        $combined .= ', ' . trim($address2);
+                    }
+                    $data[$swpmField] = $combined;
+                } elseif (isset($postFields[$fieldId][$subField])) {
                     $data[$swpmField] = $postFields[$fieldId][$subField];
                 }
                 continue;

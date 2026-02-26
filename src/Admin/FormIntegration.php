@@ -213,9 +213,17 @@ class FormIntegration {
         }
         
         // Show field IDs toggle
-        echo '<p style="margin-bottom:10px;">';
-        echo '<label><input type="checkbox" id="swpm-show-field-ids"> ';
-        echo esc_html__('Show field IDs', 'wpforms-swpm-bridge') . '</label></p>';
+        echo '<div style="margin-bottom:10px; display:flex; align-items:center; gap:15px; flex-wrap:nowrap;">';
+        echo '<label style="display:inline-flex; align-items:center; gap:5px; white-space:nowrap;"><input type="checkbox" id="swpm-show-field-ids"> ';
+        echo esc_html__('Show field IDs', 'wpforms-swpm-bridge') . '</label>';
+        echo '<span style="color:#ccc;">|</span>';
+        echo '<label style="display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">' . esc_html__('Sort by:', 'wpforms-swpm-bridge') . ' ';
+        echo '<select id="swpm-field-sort">';
+        echo '<option value="form">' . esc_html__('Form Order', 'wpforms-swpm-bridge') . '</option>';
+        echo '<option value="id">' . esc_html__('Field ID', 'wpforms-swpm-bridge') . '</option>';
+        echo '<option value="label">' . esc_html__('Label (A-Z)', 'wpforms-swpm-bridge') . '</option>';
+        echo '</select></label>';
+        echo '</div>';
         
         echo '<table class="widefat">';
         echo '<thead><tr>';
@@ -225,10 +233,12 @@ class FormIntegration {
         echo '</tr></thead>';
         echo '<tbody>';
         
-        foreach ($formFields as $fieldId => $fieldLabel) {
+        foreach ($formFields as $fieldId => $fieldInfo) {
+            $fieldLabel = is_array($fieldInfo) ? $fieldInfo['label'] : $fieldInfo;
+            $fieldOrder = is_array($fieldInfo) ? ($fieldInfo['order'] ?? 0) : 0;
             $currentMapping = $fieldMap[$fieldId] ?? '';
             
-            echo '<tr>';
+            echo '<tr data-form-order="' . esc_attr($fieldOrder) . '">';
             echo '<td>' . esc_html($fieldLabel) . '</td>';
             echo '<td class="swpm-field-id" style="display:none;"><code>' . esc_html($fieldId) . '</code></td>';
             echo '<td>';
@@ -261,7 +271,7 @@ class FormIntegration {
                          value="' . esc_attr($customKey) . '" 
                          placeholder="' . esc_attr__('meta key', 'wpforms-swpm-bridge') . '"
                          class="swpm-custom-field-input"
-                         style="margin-left:5px;width:120px;' . $customDisplay . '">';
+                         style="margin-left:5px;width:200px;' . $customDisplay . '">';
             echo '</td>';
             echo '</tr>';
         }
@@ -362,7 +372,12 @@ class FormIntegration {
             return $fields;
         }
         
-        foreach ($formData['fields'] as $id => $field) {
+        $formFields = $formData['fields'];
+        $order = 0;
+        
+        foreach ($formFields as $id => $field) {
+            $order++;
+            
             // Skip non-input fields
             $skipTypes = ['pagebreak', 'divider', 'html', 'content'];
             if (in_array($field['type'] ?? '', $skipTypes, true)) {
@@ -376,26 +391,33 @@ class FormIntegration {
                 $format = $field['format'] ?? 'first-last';
                 
                 if (in_array($format, ['first-last', 'first-middle-last'], true)) {
-                    $fields[$id . '_first'] = $label . ' (' . __('First', 'wpforms-swpm-bridge') . ')';
-                    $fields[$id . '_last'] = $label . ' (' . __('Last', 'wpforms-swpm-bridge') . ')';
+                    $fields[$id . '_first'] = ['label' => $label . ' (' . __('First', 'wpforms-swpm-bridge') . ')', 'order' => $order];
+                    $fields[$id . '_last'] = ['label' => $label . ' (' . __('Last', 'wpforms-swpm-bridge') . ')', 'order' => $order];
                 } else {
                     // Simple format - just one field
-                    $fields[$id] = $label;
+                    $fields[$id] = ['label' => $label, 'order' => $order];
                 }
             // Split Address fields into components
             } elseif (($field['type'] ?? '') === 'address') {
                 $scheme = $field['scheme'] ?? 'us';
                 
-                $fields[$id . '_address1'] = $label . ' (' . __('Address 1', 'wpforms-swpm-bridge') . ')';
-                $fields[$id . '_address2'] = $label . ' (' . __('Address 2', 'wpforms-swpm-bridge') . ')';
-                $fields[$id . '_city'] = $label . ' (' . __('City', 'wpforms-swpm-bridge') . ')';
-                $fields[$id . '_state'] = $label . ' (' . __('State', 'wpforms-swpm-bridge') . ')';
-                $fields[$id . '_postal'] = $label . ' (' . __('Zip/Postal', 'wpforms-swpm-bridge') . ')';
-                $fields[$id . '_country'] = $label . ' (' . __('Country', 'wpforms-swpm-bridge') . ')';
+                $fields[$id . '_street'] = ['label' => $label . ' (' . __('Street', 'wpforms-swpm-bridge') . ')', 'order' => $order];
+                $fields[$id . '_city'] = ['label' => $label . ' (' . __('City', 'wpforms-swpm-bridge') . ')', 'order' => $order];
+                $fields[$id . '_state'] = ['label' => $label . ' (' . __('State', 'wpforms-swpm-bridge') . ')', 'order' => $order];
+                $fields[$id . '_postal'] = ['label' => $label . ' (' . __('Zip/Postal', 'wpforms-swpm-bridge') . ')', 'order' => $order];
+                $fields[$id . '_country'] = ['label' => $label . ' (' . __('Country', 'wpforms-swpm-bridge') . ')', 'order' => $order];
             } else {
-                $fields[$id] = $label;
+                $fields[$id] = ['label' => $label, 'order' => $order];
             }
         }
+        
+        // Sort by ID by default
+        // Sort by form order by default
+        uasort($fields, function($a, $b) {
+            $orderA = is_array($a) ? ($a['order'] ?? 0) : 0;
+            $orderB = is_array($b) ? ($b['order'] ?? 0) : 0;
+            return $orderA - $orderB;
+        });
         
         return $fields;
     }
@@ -417,7 +439,9 @@ class FormIntegration {
             // Merge custom_ fields with their custom key values
             foreach ($fieldMap as $fieldId => $mapping) {
                 if ($mapping === 'custom_' && !empty($customMap[$fieldId])) {
-                    $fieldMap[$fieldId] = 'custom_' . sanitize_key($customMap[$fieldId]);
+                    // Replace spaces with underscores, then sanitize
+                    $key = str_replace(' ', '_', $customMap[$fieldId]);
+                    $fieldMap[$fieldId] = 'custom_' . sanitize_key($key);
                 }
             }
             

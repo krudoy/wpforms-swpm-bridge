@@ -1,0 +1,19 @@
+{
+    "name": "wpforms-swpm-bridge/wpforms-swpm-bridge",
+    "description": "Integrates WPForms with Simple WordPress Membership for form-driven member management",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "SWPMWPForms\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

@@ -6,3 +6,4 @@
 [_] Widget for Show profile form (not edit, with ability to insert custom shortcodes)
 [_] Check for ability of WPForms to use shortcodes on the form
 [_] Update plugin author and website URL in plugin header
+[_] Full-fledged testing (unit tests, integration tests, manual test cases)

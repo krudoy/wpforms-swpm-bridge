@@ -7,6 +7,7 @@ namespace SWPMWPForms;
 use SWPMWPForms\Admin\FormIntegration;
 use SWPMWPForms\Admin\SettingsPage;
 use SWPMWPForms\Handlers\SubmissionHandler;
+use SWPMWPForms\Handlers\ShortcodeDisplayHandler;
 
 /**
  * Main plugin orchestrator.
@@ -81,6 +82,9 @@ final class Plugin {
     private function initHandlers(): void {
         $submissionHandler = new SubmissionHandler();
         $submissionHandler->init();
+
+        $shortcodeHandler = new ShortcodeDisplayHandler();
+        $shortcodeHandler->init();
     }
     
     /**

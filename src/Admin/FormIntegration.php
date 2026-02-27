@@ -61,14 +61,14 @@ class FormIntegration {
             
             <!-- Enable Toggle -->
             <div class="wpforms-setting-row">
-                <label for="swpm-integration-enabled">
+                <label for="swpm-integration-enabled" class="swpm-checkbox-label">
+                    <input type="checkbox" 
+                           id="swpm-integration-enabled" 
+                           name="settings[swpm_integration][enabled]" 
+                           value="1" 
+                           <?php checked($config['enabled'] ?? false); ?>>
                     <?php esc_html_e('Enable SWPM Integration', 'wpforms-swpm-bridge'); ?>
                 </label>
-                <input type="checkbox" 
-                       id="swpm-integration-enabled" 
-                       name="settings[swpm_integration][enabled]" 
-                       value="1" 
-                       <?php checked($config['enabled'] ?? false); ?>>
                 <p class="note">
                     <?php esc_html_e('Process form submissions as SWPM membership actions.', 'wpforms-swpm-bridge'); ?>
                 </p>
@@ -207,6 +207,30 @@ class FormIntegration {
                 </div>
                 
             </div>
+
+            <!-- Advanced group: WPForms-native structure, collapsed by default -->
+            <div class="wpforms-panel-fields-group unfoldable" data-group="settings_advanced">
+                <div class="wpforms-panel-fields-group-border-top"></div>
+                <div class="wpforms-panel-fields-group-title">
+                    <?php esc_html_e( 'Advanced', 'wpforms-swpm-bridge' ); ?><i class="fa fa-chevron-circle-right"></i>
+                </div>
+                <div class="wpforms-panel-fields-group-inner">
+                    <div class="wpforms-setting-row">
+                        <label for="swpm-enable-shortcodes" class="swpm-checkbox-label">
+                            <input type="checkbox"
+                                   id="swpm-enable-shortcodes"
+                                   name="settings[swpm_integration][options][enable_shortcodes]"
+                                   value="1"
+                                   <?php checked( $config['options']['enable_shortcodes'] ?? false ); ?>>
+                            <?php esc_html_e( 'Enable shortcode processing in HTML fields', 'wpforms-swpm-bridge' ); ?>
+                        </label>
+                        <p class="note">
+                            <?php esc_html_e( 'When enabled, do_shortcode() runs on HTML field content at frontend render time. OFF by default. Never applies to submitted values.', 'wpforms-swpm-bridge' ); ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
         </div>
         <?php
     }
@@ -428,9 +452,8 @@ class FormIntegration {
             }
         }
         
-        // Sort by field ID (natural sort) for consistent ordering
-        // between PHP arrays and JSON round-trips
-        ksort($fields, SORT_NATURAL);
+        // Sort by form order to match WPForms field sequence
+        uasort($fields, fn($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
         
         return $fields;
     }
@@ -462,6 +485,7 @@ class FormIntegration {
                 'auto_login' => false,
                 'send_welcome' => true,
                 'redirect_url' => '',
+                'enable_shortcodes' => false,
             ],
         ];
     }

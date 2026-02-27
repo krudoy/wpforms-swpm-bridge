@@ -4,6 +4,8 @@
 (function($) {
     'use strict';
 
+    var _initialized = false;
+
     // Debug logging helper
     function log() {
         if (typeof swpm_wpforms !== 'undefined' && swpm_wpforms.debug) {
@@ -14,6 +16,8 @@
     var SwpmWpformsAdmin = {
         
         init: function() {
+            if (_initialized) { return; }
+            _initialized = true;
             this.bindEvents();
             this.toggleIntegrationSettings();
             this.updateActionVisibility();
@@ -199,7 +203,7 @@
             var show = $('#swpm-show-field-ids').is(':checked');
             $('.swpm-field-id').toggle(show);
         },
-        
+
         handleSortChange: function() {
             var sortBy = $('#swpm-field-sort').val();
             var $tbody = $('#swpm-field-mapping table tbody');

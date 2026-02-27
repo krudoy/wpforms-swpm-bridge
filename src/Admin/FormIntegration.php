@@ -203,7 +203,7 @@ class FormIntegration {
      */
     private function renderFieldMappingRows(array $formData, array $config): void {
         $formFields = $this->getFormFields($formData);
-        $fieldMap = $config['field_map'] ?? [];
+        $fieldMap = $this->getFieldMapWithCustomKeys($config);
         
         $swpmFields = $this->getAvailableSwpmFields();
         
@@ -233,6 +233,10 @@ class FormIntegration {
         echo '</tr></thead>';
         echo '<tbody>';
         
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[SWPM-DEBUG] renderFieldMappingRows - fieldMap: ' . print_r($fieldMap, true));
+        }
+        
         foreach ($formFields as $fieldId => $fieldInfo) {
             $fieldLabel = is_array($fieldInfo) ? $fieldInfo['label'] : $fieldInfo;
             $fieldOrder = is_array($fieldInfo) ? ($fieldInfo['order'] ?? 0) : 0;
@@ -248,7 +252,7 @@ class FormIntegration {
                 if (is_array($fields)) {
                     echo '<optgroup label="' . esc_attr($group) . '">';
                     foreach ($fields as $value => $label) {
-                        $selected = ($currentMapping === $value) ? ' selected' : '';
+                        $selected = ($currentMapping === $value || ($value === 'custom_' && str_starts_with($currentMapping, 'custom_'))) ? ' selected' : '';
                         echo '<option value="' . esc_attr($value) . '"' . $selected . '>' . esc_html($label) . '</option>';
                     }
                     echo '</optgroup>';
@@ -411,47 +415,22 @@ class FormIntegration {
             }
         }
         
-        // Sort by ID by default
-        // Sort by form order by default
-        uasort($fields, function($a, $b) {
-            $orderA = is_array($a) ? ($a['order'] ?? 0) : 0;
-            $orderB = is_array($b) ? ($b['order'] ?? 0) : 0;
-            return $orderA - $orderB;
-        });
+        // Sort by field ID (natural sort) for consistent ordering
+        // between PHP arrays and JSON round-trips
+        ksort($fields, SORT_NATURAL);
         
         return $fields;
     }
     
     /**
      * Process custom field mappings before form save.
+     * 
+     * IMPORTANT: We do NOT modify $form['post_content'] because it can corrupt the form.
+     * Instead, we let WPForms save field_map_custom as-is, and merge at render time.
      */
     public function processCustomFieldMappings(array $form, $data, $args): array {
-        // Decode form data
-        $formData = wpforms_decode($form['post_content']);
-        
-        // Check if we have custom field mappings to merge
-        if (isset($formData['settings']['swpm_integration']['field_map']) && 
-            isset($formData['settings']['swpm_integration']['field_map_custom'])) {
-            
-            $fieldMap = $formData['settings']['swpm_integration']['field_map'];
-            $customMap = $formData['settings']['swpm_integration']['field_map_custom'];
-            
-            // Merge custom_ fields with their custom key values
-            foreach ($fieldMap as $fieldId => $mapping) {
-                if ($mapping === 'custom_' && !empty($customMap[$fieldId])) {
-                    // Replace spaces with underscores, then sanitize
-                    $key = str_replace(' ', '_', $customMap[$fieldId]);
-                    $fieldMap[$fieldId] = 'custom_' . sanitize_key($key);
-                }
-            }
-            
-            $formData['settings']['swpm_integration']['field_map'] = $fieldMap;
-            unset($formData['settings']['swpm_integration']['field_map_custom']);
-            
-            // Re-encode
-            $form['post_content'] = wpforms_encode($formData);
-        }
-        
+        // Do nothing here - field_map_custom is saved by WPForms automatically
+        // We merge custom keys into field_map at render time (getFieldMapWithCustomKeys)
         return $form;
     }
     
@@ -487,6 +466,26 @@ class FormIntegration {
         
         $instance = new self();
         return $instance->getIntegrationConfig($formData);
+    }
+    
+    /**
+     * Get field map with custom keys merged in.
+     * 
+     * WPForms saves field_map_custom separately. This method merges them at read time
+     * so 'custom_' + field_map_custom[id] becomes 'custom_keyname'.
+     */
+    public function getFieldMapWithCustomKeys(array $config): array {
+        $fieldMap = $config['field_map'] ?? [];
+        $customMap = $config['field_map_custom'] ?? [];
+        
+        foreach ($fieldMap as $fieldId => $mapping) {
+            if ($mapping === 'custom_' && !empty($customMap[$fieldId])) {
+                $key = str_replace(' ', '_', $customMap[$fieldId]);
+                $fieldMap[$fieldId] = 'custom_' . sanitize_key($key);
+            }
+        }
+        
+        return $fieldMap;
     }
     
     /**

@@ -43,6 +43,9 @@ class SubmissionHandler {
         
         // Hook for validation errors
         add_filter('wpforms_process_initial_errors', [$this, 'addValidationErrors'], 10, 2);
+        
+        // Filter to block notifications on integration failure
+        add_filter('wpforms_entry_email_send', [$this, 'maybeBlockNotifications'], 10, 5);
     }
     
     /**
@@ -99,10 +102,21 @@ class SubmissionHandler {
                     'error' => $result['error'] ?? 'Unknown error',
                 ]);
                 
+                // Store failure state to block standard notifications
+                $this->storeIntegrationResult($formData['id'], false);
+                
+                // Send admin failure notification if enabled
+                if (!empty($config['options']['notify_admin_on_failure'])) {
+                    $this->sendAdminFailureNotification($formData, $fields, $result['error'] ?? 'Unknown error');
+                }
+                
                 // Store error for display
                 $this->storeError($formData['id'], $result['error'] ?? __('Membership action failed', 'wpforms-swpm-bridge'));
                 return;
             }
+            
+            // Store success state to allow standard notifications
+            $this->storeIntegrationResult($formData['id'], true);
             
             $this->logger->info('SWPM action completed', [
                 'form_id' => $formData['id'],
@@ -387,5 +401,86 @@ class SubmissionHandler {
     private function storeError(int $formId, string $message): void {
         // Store in transient for display
         set_transient('swpm_wpforms_error_' . $formId, $message, 60);
+    }
+    
+    /**
+     * Store integration result for notification filtering.
+     */
+    private function storeIntegrationResult(int $formId, bool $success): void {
+        set_transient('swpm_wpforms_result_' . $formId . '_' . get_current_user_id(), $success, 60);
+    }
+    
+    /**
+     * Get stored integration result.
+     */
+    private function getIntegrationResult(int $formId): ?bool {
+        $result = get_transient('swpm_wpforms_result_' . $formId . '_' . get_current_user_id());
+        return $result === false ? null : $result;
+    }
+    
+    /**
+     * Filter to block WPForms notifications on integration failure.
+     */
+    public function maybeBlockNotifications(bool $send, array $fields, array $entry, array $formData): bool {
+        // Check if this form has SWPM integration
+        $config = FormIntegration::getConfig($formData);
+        if (empty($config['enabled'])) {
+            return $send; // Not our form, don't interfere
+        }
+        
+        // Check integration result
+        $result = $this->getIntegrationResult((int) $formData['id']);
+        
+        // If integration failed, block notifications
+        if ($result === false) {
+            $this->logger->debug('Blocking notification due to integration failure', [
+                'form_id' => $formData['id'],
+            ]);
+            return false;
+        }
+        
+        return $send;
+    }
+    
+    /**
+     * Send admin notification on integration failure.
+     */
+    private function sendAdminFailureNotification(array $formData, array $fields, string $error): void {
+        $adminEmail = get_option('admin_email');
+        $siteName = get_bloginfo('name');
+        $formName = $formData['settings']['form_title'] ?? 'Unknown Form';
+        
+        $subject = sprintf(
+            /* translators: %1$s: site name, %2$s: form name */
+            __('[%1$s] SWPM Integration Failed: %2$s', 'wpforms-swpm-bridge'),
+            $siteName,
+            $formName
+        );
+        
+        // Build field summary
+        $fieldSummary = '';
+        foreach ($fields as $field) {
+            $label = $field['name'] ?? $field['id'];
+            $value = $field['value'] ?? '';
+            if (!empty($value)) {
+                $fieldSummary .= sprintf("%s: %s\n", $label, $value);
+            }
+        }
+        
+        $message = sprintf(
+            /* translators: %1$s: form name, %2$s: error message, %3$s: field summary, %4$s: timestamp */
+            __("SWPM integration failed for form submission.\n\nForm: %1\$s\nError: %2\$s\n\nSubmitted Data:\n%3\$s\nTime: %4\$s", 'wpforms-swpm-bridge'),
+            $formName,
+            $error,
+            $fieldSummary,
+            current_time('mysql')
+        );
+        
+        wp_mail($adminEmail, $subject, $message);
+        
+        $this->logger->info('Admin failure notification sent', [
+            'form_id' => $formData['id'],
+            'admin_email' => $adminEmail,
+        ]);
     }
 }

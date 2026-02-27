@@ -174,8 +174,21 @@ class FormIntegration {
                             <input type="checkbox" 
                                    name="settings[swpm_integration][options][send_welcome]" 
                                    value="1" 
-                                   <?php checked($config['options']['send_welcome'] ?? true); ?>>
+                                   <?php checked($config['options']['send_welcome'] ?? false); ?>>
                             <?php esc_html_e('Send SWPM welcome email', 'wpforms-swpm-bridge'); ?>
+                        </label>
+                        <p class="description" style="margin-left: 24px; color: #666;">
+                            <?php esc_html_e('Not recommended. Use WPForms notifications instead for more control and customization.', 'wpforms-swpm-bridge'); ?>
+                        </p>
+                    </div>
+                    
+                    <div class="swpm-option-group">
+                        <label>
+                            <input type="checkbox" 
+                                   name="settings[swpm_integration][options][notify_admin_on_failure]" 
+                                   value="1" 
+                                   <?php checked($config['options']['notify_admin_on_failure'] ?? false); ?>>
+                            <?php esc_html_e('Notify admin on integration failure', 'wpforms-swpm-bridge'); ?>
                         </label>
                     </div>
                 </div>

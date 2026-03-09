@@ -1,0 +1,460 @@
+/**
+ * SWPM Profile Widget Styles
+ * 
+ * Layout options: wpforms, table, list, inline
+ */
+
+/* Base styles */
+.swpm-profile {
+    margin: 1em 0;
+}
+
+.swpm-profile-not-logged-in {
+    padding: 1em;
+    background: #f5f5f5;
+    border-left: 4px solid #0073aa;
+    color: #333;
+}
+
+/* ==========================================================================
+   WPForms Style Layout (matches WPForms form preview)
+   ========================================================================== */
+
+.swpm-profile-wpforms .wpforms-field {
+    margin-bottom: 1em;
+}
+
+.swpm-profile-wpforms .wpforms-field-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25em;
+    color: #333;
+}
+
+.swpm-profile-wpforms .wpforms-field-description {
+    padding: 0.5em 0.75em;
+    background: #f9f9f9;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: #555;
+}
+
+/* Value display boxes (for profile data) */
+.swpm-profile-wpforms .swpm-field-value {
+    padding: 8px 12px;
+    background: #f9f9f9;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    min-height: 1.5em;
+    line-height: 1.4;
+}
+
+/* Compound field sub-values (name, address rows) */
+.swpm-profile-wpforms .wpforms-field-row-block .swpm-field-value {
+    margin-bottom: 4px;
+}
+
+/* Empty value styling */
+.swpm-profile-wpforms .swpm-field-value.swpm-value-empty {
+    color: #999;
+    font-style: italic;
+}
+
+/* Sub-field row layout (mirrors WPForms) */
+.swpm-profile-wpforms .wpforms-field-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -5px 10px -5px;
+}
+
+.swpm-profile-wpforms .wpforms-field-row-block {
+    padding: 0 5px;
+    box-sizing: border-box;
+    flex: 1 1 100%;
+}
+
+.swpm-profile-wpforms .wpforms-field-row-block.wpforms-one-half {
+    flex: 0 0 50%;
+    max-width: 50%;
+}
+
+.swpm-profile-wpforms .wpforms-field-row-block.wpforms-one-third {
+    flex: 0 0 33.333%;
+    max-width: 33.333%;
+}
+
+.swpm-profile-wpforms .wpforms-field-sublabel {
+    display: block;
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 2px;
+}
+
+/* Responsive: stack on mobile */
+@media (max-width: 600px) {
+    .swpm-profile-wpforms .wpforms-field-row-block.wpforms-one-half,
+    .swpm-profile-wpforms .wpforms-field-row-block.wpforms-one-third {
+        flex: 0 0 100%;
+        max-width: 100%;
+        margin-bottom: 10px;
+    }
+}
+
+/* ==========================================================================
+   Table Layout
+   ========================================================================== */
+
+.swpm-profile-table .swpm-profile-table-inner {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.swpm-profile-table th,
+.swpm-profile-table td {
+    padding: 0.75em;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.swpm-profile-table th {
+    width: 30%;
+    font-weight: 600;
+    color: #333;
+    background: #f9f9f9;
+}
+
+.swpm-profile-table td {
+    color: #555;
+}
+
+.swpm-profile-table tr:last-child th,
+.swpm-profile-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* ==========================================================================
+   List Layout (Definition List)
+   ========================================================================== */
+
+.swpm-profile-list .swpm-profile-fields {
+    margin: 0;
+}
+
+.swpm-profile-list dt {
+    font-weight: 600;
+    color: #333;
+    margin-top: 0.75em;
+}
+
+.swpm-profile-list dt:first-child {
+    margin-top: 0;
+}
+
+.swpm-profile-list dd {
+    margin-left: 0;
+    padding-left: 1em;
+    color: #555;
+    border-left: 2px solid #0073aa;
+}
+
+/* ==========================================================================
+   Inline Layout
+   ========================================================================== */
+
+.swpm-profile-inline {
+    line-height: 1.8;
+}
+
+.swpm-profile-inline .swpm-field {
+    display: inline;
+}
+
+.swpm-profile-inline .swpm-field-label {
+    font-weight: 600;
+    color: #333;
+}
+
+.swpm-profile-inline .swpm-field-value {
+    color: #555;
+}
+
+.swpm-profile-inline .swpm-field-separator {
+    color: #ccc;
+    margin: 0 0.5em;
+}
+
+/* ==========================================================================
+   Block Editor Preview
+   ========================================================================== */
+
+.swpm-profile-preview {
+    padding: 1em;
+    background: #f0f0f0;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+}
+
+.swpm-profile-preview-header {
+    font-weight: 600;
+    margin-bottom: 0.5em;
+    color: #1e1e1e;
+}
+
+.swpm-profile-preview-meta {
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 0.5em;
+}
+
+.swpm-profile-preview-text {
+    color: #757575;
+    font-style: italic;
+}
+
+.swpm-profile-preview-content {
+    margin-top: 0.5em;
+    padding: 0.5em;
+    background: #fff;
+    border: 1px solid transparent;
+    font-size: 0.85em;
+    overflow-x: auto;
+}
+
+
+/* ==========================================================================
+   Password Notice
+   ========================================================================== */
+
+.swpm-profile-password-notice {
+    margin-top: 1em;
+    padding: 0.5em 1em;
+    background: #fff8e5;
+    border-left: 4px solid #ffb900;
+    font-size: 0.9em;
+    color: #6b5900;
+}
+
+.swpm-profile-password-notice em {
+    font-style: italic;
+}
+
+/* Block editor preview styles */
+.swpm-profile-preview-fields {
+    font-size: 0.85em;
+    color: #0073aa;
+    margin-bottom: 0.5em;
+}
+
+.swpm-profile-preview-notice {
+    font-size: 0.85em;
+    color: #996800;
+    background: #fff8e5;
+    padding: 0.25em 0.5em;
+    border-radius: 3px;
+    margin-top: 0.5em;
+}
+
+
+/* ==========================================================================
+   Block Editor - Field Checkboxes
+   ========================================================================== */
+
+.swpm-field-checkboxes {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 8px;
+    background: #f9f9f9;
+}
+
+.swpm-field-checkboxes .components-checkbox-control {
+    margin-bottom: 4px;
+}
+
+.swpm-field-checkboxes .components-checkbox-control:last-child {
+    margin-bottom: 0;
+}
+
+.swpm-field-checkboxes .components-checkbox-control__label {
+    font-size: 13px;
+}
+
+.swpm-warning {
+    color: #d63638;
+    font-style: italic;
+}
+
+
+/* ==========================================================================
+   Structural Fields (Divider, HTML, Content)
+   ========================================================================== */
+
+/* Divider field */
+.swpm-field-divider {
+    margin: 1.5em 0 1em 0;
+    padding: 0;
+}
+
+.swpm-field-divider .swpm-divider-label {
+    margin: 0 0 0.25em 0;
+    padding-bottom: 0.5em;
+    border-bottom: none;
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #333;
+}
+
+.swpm-field-divider .swpm-divider-hr {
+    margin: 8px 0 15px 0;
+    border: 0;
+    border-top: 2px solid #0073aa;
+    height: 0;
+}
+
+.swpm-field-divider .swpm-divider-description {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 0.25em;
+}
+
+/* HTML field */
+.swpm-field-html {
+    margin: 1em 0;
+}
+
+.swpm-field-html .swpm-html-content {
+    line-height: 1.6;
+}
+
+/* Content field */
+.swpm-field-content {
+    margin: 1em 0;
+}
+
+.swpm-field-content .swpm-content-content {
+    line-height: 1.6;
+}
+
+/* ==========================================================================
+   Border Option
+   ========================================================================== */
+
+.swpm-show-border .swpm-field-value {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.swpm-show-border .wpforms-field-row-block .swpm-field-value {
+    border: 1px solid #ccc;
+}
+
+/* WPForms layout adjustments for structural fields */
+.swpm-profile-wpforms .swpm-field-divider,
+.swpm-profile-wpforms .swpm-field-html,
+.swpm-profile-wpforms .swpm-field-content {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Table layout - structural fields span full width */
+.swpm-profile-table .swpm-field-divider,
+.swpm-profile-table .swpm-field-html,
+.swpm-profile-table .swpm-field-content {
+    display: table-caption;
+    caption-side: top;
+}
+
+
+/* ==========================================================================
+   Block Editor - Live Preview
+   ========================================================================== */
+
+.swpm-profile-editor-preview {
+    border: 1px solid transparent;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.swpm-profile-editor-preview-header {
+    background: #f0f0f0;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1e1e1e;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.swpm-profile-editor-preview-header .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.swpm-profile-editor-preview .swpm-profile {
+    padding: 12px;
+}
+
+.swpm-profile-editor-empty {
+    padding: 20px;
+    text-align: center;
+    color: #757575;
+    font-style: italic;
+}
+
+/* Empty field styling */
+.swpm-field-empty .swpm-field-value {
+    color: #999;
+    font-style: italic;
+}
+
+
+/* ==========================================================================
+   Layout Field (Column Support)
+   ========================================================================== */
+
+.swpm-field-layout {
+    margin: 0;
+    padding: 0;
+}
+
+.wpforms-field-layout-columns {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -10px;
+}
+
+.wpforms-layout-column {
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+/* Column widths */
+.wpforms-layout-column-full { width: 100%; }
+.wpforms-layout-column-one-half { width: 50%; }
+.wpforms-layout-column-one-third { width: 33.333%; }
+.wpforms-layout-column-two-thirds { width: 66.666%; }
+.wpforms-layout-column-one-quarter { width: 25%; }
+.wpforms-layout-column-three-quarters { width: 75%; }
+.wpforms-layout-column-one-fifth { width: 20%; }
+.wpforms-layout-column-two-fifths { width: 40%; }
+.wpforms-layout-column-three-fifths { width: 60%; }
+.wpforms-layout-column-four-fifths { width: 80%; }
+
+/* Responsive: stack columns on mobile */
+@media (max-width: 600px) {
+    .wpforms-layout-column {
+        width: 100% !important;
+    }
+}
+
+/* Legacy CSS class support */
+.wpforms-one-half { width: 50%; display: inline-block; vertical-align: top; }
+.wpforms-one-third { width: 33.333%; display: inline-block; vertical-align: top; }
+.wpforms-two-thirds { width: 66.666%; display: inline-block; vertical-align: top; }
+.wpforms-one-quarter { width: 25%; display: inline-block; vertical-align: top; }
+.wpforms-three-quarters { width: 75%; display: inline-block; vertical-align: top; }
+.wpforms-first { clear: left; }

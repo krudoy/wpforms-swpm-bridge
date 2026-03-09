@@ -425,7 +425,10 @@ class FormIntegration {
                 continue;
             }
             
-            $label = $field['label'] ?? sprintf(__('Field %d', 'wpforms-swpm-bridge'), $id);
+            // Use label if available, otherwise use "Type (ID)" format
+            $label = !empty($field['label']) 
+                ? $field['label'] 
+                : sprintf('%s (%d)', ucfirst($field['type'] ?? 'field'), $id);
             
             // Split Name fields into First/Last components
             if (($field['type'] ?? '') === 'name') {

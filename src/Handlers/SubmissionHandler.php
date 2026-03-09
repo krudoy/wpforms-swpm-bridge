@@ -261,7 +261,7 @@ class SubmissionHandler {
                 continue;
             }
             
-            $data[$swpmField] = $field['value'] ?? '';
+            $data[$swpmField] = $this->normalizeMappedFieldValue($field['value'] ?? '');
         }
         
         // Use fixed membership level if set, otherwise from field map
@@ -332,8 +332,7 @@ class SubmissionHandler {
                 continue;
             }
             
-            $value = $postFields[$mappingKey];
-            $data[$swpmField] = is_array($value) ? ($value['value'] ?? '') : $value;
+            $data[$swpmField] = $this->normalizeMappedFieldValue($postFields[$mappingKey]);
         }
         
         // Membership level handling
@@ -344,6 +343,29 @@ class SubmissionHandler {
         }
         
         return MemberDTO::fromArray($data);
+    }
+
+    /**
+     * Normalize mapped field values from WPForms processed or raw POST payloads.
+     */
+    private function normalizeMappedFieldValue($value): string {
+        if (!is_array($value)) {
+            return is_scalar($value) ? (string) $value : '';
+        }
+
+        if (array_key_exists('value', $value)) {
+            return $this->normalizeMappedFieldValue($value['value']);
+        }
+
+        $normalized = [];
+
+        array_walk_recursive($value, static function ($item) use (&$normalized): void {
+            if (is_scalar($item) && $item !== '') {
+                $normalized[] = (string) $item;
+            }
+        });
+
+        return implode(', ', $normalized);
     }
     
     /**

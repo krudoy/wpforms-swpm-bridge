@@ -71,6 +71,147 @@ Map WPForms fields to these SWPM fields:
 - **Send welcome email**: Trigger SWPM's welcome email
 - **Redirect URL**: Override form redirect on success
 
+
+## Profile Display
+
+Display member profile data on the frontend using shortcodes or a Gutenberg block.
+
+### Shortcodes
+
+#### `[swpm_profile]` — Display Member Profile
+
+Renders member data using a WPForms field mapping as the template.
+
+**Basic Usage:**
+
+```
+[swpm_profile form_id="123"]
+```
+
+**Attributes:**
+
+| Attribute | Default | Description |
+|-----------|---------|-------------|
+| `form_id` | — | **Required.** WPForms form ID with SWPM integration enabled |
+| `layout` | `wpforms` | Display layout: `wpforms`, `table`, `list`, `inline` |
+| `member_id` | — | Show specific member (default: current logged-in member) |
+| `username` | — | Alternative to `member_id` |
+| `include` | — | Comma-separated field names to show (whitelist) |
+| `exclude` | — | Comma-separated field names to hide (blacklist) |
+| `password_notice` | `auto` | Password footnote: `auto`, `yes`, `no` |
+| `class` | — | Additional CSS class for wrapper |
+
+**Layout Options:**
+
+| Layout | Description |
+|--------|-------------|
+| `wpforms` | Matches WPForms form styling with labels above values |
+| `table` | Two-column table with labels and values |
+| `list` | Definition list with left border accent |
+| `inline` | All fields in one line separated by `\|` |
+
+**Examples:**
+
+```
+// Basic profile using form template
+[swpm_profile form_id="123"]
+
+// Table layout with custom class
+[swpm_profile form_id="123" layout="table" class="my-profile"]
+
+// Show only specific fields
+[swpm_profile form_id="123" include="email,first_name,last_name,membership_level"]
+
+// Hide specific fields
+[swpm_profile form_id="123" exclude="phone,address_street,address_city"]
+
+// Show specific member's profile
+[swpm_profile form_id="123" member_id="42"]
+
+// Force password notice display
+[swpm_profile form_id="123" password_notice="yes"]
+```
+
+#### `[swpm_field]` — Display Single Field
+
+Renders a single member field value. Can be used standalone or inside `[swpm_profile]`.
+
+**Usage:**
+
+```
+[swpm_field name="email"]
+```
+
+**Attributes:**
+
+| Attribute | Default | Description |
+|-----------|---------|-------------|
+| `name` | — | **Required.** SWPM field name |
+| `member_id` | — | Show specific member (default: current logged-in) |
+| `username` | — | Alternative to `member_id` |
+| `default` | — | Value to show if field is empty |
+| `format` | — | Special formatting: `date`, `membership_name`, `raw` |
+
+**Available Field Names:**
+
+| Field Name | Description |
+|------------|-------------|
+| `email` | Member email |
+| `username` | Member username |
+| `first_name` | First name |
+| `last_name` | Last name |
+| `membership_level` | Level ID (use `format="membership_name"` for name) |
+| `phone` | Phone number |
+| `address_street` | Street address |
+| `address_city` | City |
+| `address_state` | State/Province |
+| `address_zipcode` | Zip/Postal code |
+| `country` | Country |
+| `company` | Company name |
+| `gender` | Gender |
+| `member_since` | Registration date |
+| `subscription_starts` | Subscription start date |
+| `account_state` | Account status |
+| `wp_display_name` | WordPress display name |
+| `wp_nickname` | WordPress nickname |
+| `wp_description` | WordPress bio |
+| `wp_user_url` | WordPress website URL |
+| `custom_*` | Custom meta field (e.g., `custom_company_id`) |
+
+**Examples:**
+
+```
+// Basic field display
+Welcome, [swpm_field name="first_name" default="Member"]!
+
+// Membership level as name (not ID)
+Your plan: [swpm_field name="membership_level" format="membership_name"]
+
+// Custom template inside swpm_profile
+[swpm_profile]
+<div class="profile-card">
+    <h2>[swpm_field name="first_name"] [swpm_field name="last_name"]</h2>
+    <p>Email: [swpm_field name="email"]</p>
+    <p>Member since: [swpm_field name="member_since"]</p>
+</div>
+[/swpm_profile]
+```
+
+### Gutenberg Block
+
+The **SWPM Profile** block is available in the block inserter under the Widgets category.
+
+Block settings include all shortcode options plus a visual preview showing:
+- Selected form and layout
+- Field visibility configuration  
+- Password notice indicator
+
+### Security Notes
+
+- **Password fields are always hidden** regardless of mapping or configuration
+- When a password field is mapped in the form, a security footnote is displayed automatically
+- Use `password_notice="no"` to suppress the footnote if needed
+
 ## Filters & Actions
 
 ### Filters

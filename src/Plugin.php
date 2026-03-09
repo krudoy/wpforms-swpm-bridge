@@ -8,6 +8,8 @@ use SWPMWPForms\Admin\FormIntegration;
 use SWPMWPForms\Admin\SettingsPage;
 use SWPMWPForms\Handlers\SubmissionHandler;
 use SWPMWPForms\Handlers\ShortcodeDisplayHandler;
+use SWPMWPForms\Shortcodes\ProfileShortcode;
+use SWPMWPForms\Blocks\ProfileBlock;
 
 /**
  * Main plugin orchestrator.
@@ -85,6 +87,14 @@ final class Plugin {
 
         $shortcodeHandler = new ShortcodeDisplayHandler();
         $shortcodeHandler->init();
+        
+        // Profile display shortcodes
+        $profileShortcode = new ProfileShortcode();
+        $profileShortcode->init();
+        
+        // Gutenberg block
+        $profileBlock = new ProfileBlock();
+        $profileBlock->init();
     }
     
     /**

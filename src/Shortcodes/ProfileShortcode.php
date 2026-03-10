@@ -22,6 +22,7 @@ class ProfileShortcode {
     private const STRUCTURAL_FIELD_TYPES = ['divider', 'html', 'content'];
     private const COMPOUND_FIELD_TYPES = ['name', 'address'];
     private const CONTAINER_FIELD_TYPES = ['layout', 'repeater'];
+    private const EMPTY_RENDERABLE_UNMAPPED_FIELD_TYPES = ['checkbox', 'radio'];
     
     public function __construct() {
         $this->swpmService = SwpmService::instance();
@@ -332,11 +333,15 @@ class ProfileShortcode {
      */
     private function renderSimpleField(array $formField, array $context): string {
         $fieldIdStr = (string) $formField['id'];
+        $fieldType = (string) ($formField['type'] ?? '');
         $swpmField = $this->fieldMap[$fieldIdStr] ?? '';
         $renderUnmappedField = empty($swpmField) && !empty($context['renderUnmappedFields']);
+        $renderEmptyUnmappedChoiceField = empty($swpmField)
+            && !empty($context['showEmpty'])
+            && in_array($fieldType, self::EMPTY_RENDERABLE_UNMAPPED_FIELD_TYPES, true);
         
         if (in_array($swpmField, self::EXCLUDED_FIELDS, true)) return '';
-        if (empty($swpmField) && !$renderUnmappedField) return '';
+        if (empty($swpmField) && !$renderUnmappedField && !$renderEmptyUnmappedChoiceField) return '';
         
         $rawValue = empty($swpmField)
             ? null

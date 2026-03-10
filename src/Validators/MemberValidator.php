@@ -148,9 +148,16 @@ class MemberValidator {
         if (!class_exists('SwpmMembershipLevelUtils')) {
             return true; // Can't validate without SWPM
         }
-        
-        $level = \SwpmMembershipLevelUtils::get_level_info($levelId);
-        return $level !== null;
+
+        if (method_exists('SwpmMembershipLevelUtils', 'check_if_membership_level_exists')) {
+            return \SwpmMembershipLevelUtils::check_if_membership_level_exists((int) $levelId);
+        }
+
+        $levels = \SwpmMembershipLevelUtils::get_all_membership_levels_in_array() ?: [];
+
+        return array_key_exists($levelId, $levels)
+            || array_key_exists((string) $levelId, $levels)
+            || array_key_exists((int) $levelId, $levels);
     }
     
     /**

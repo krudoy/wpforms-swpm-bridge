@@ -95,6 +95,9 @@ class FormIntegration {
                             <?php esc_html_e('Change Password', 'wpforms-swpm-bridge'); ?>
                         </option>
                     </select>
+                    <p class="description" style="margin-top: 8px; color: #666;">
+                        <?php esc_html_e('Change Password: Requires mapping both a "Current Password" field and a "Password" field. The current password is verified before allowing the change.', 'wpforms-swpm-bridge'); ?>
+                    </p>
                 </div>
                 
                 <!-- Field Mapping -->

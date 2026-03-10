@@ -334,6 +334,7 @@ class FormIntegration {
                 'email' => __('Email', 'wpforms-swpm-bridge'),
                 'username' => __('Username', 'wpforms-swpm-bridge'),
                 'password' => __('Password', 'wpforms-swpm-bridge'),
+                'current_password' => __('Current Password (for change)', 'wpforms-swpm-bridge'),
                 'first_name' => __('First Name', 'wpforms-swpm-bridge'),
                 'last_name' => __('Last Name', 'wpforms-swpm-bridge'),
                 'membership_level' => __('Membership Level', 'wpforms-swpm-bridge'),

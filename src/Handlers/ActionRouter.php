@@ -38,6 +38,7 @@ class ActionRouter {
             'register_member' => $this->handleRegister($dto, $options),
             'update_member' => $this->handleUpdate($dto, $options),
             'change_level' => $this->handleChangeLevel($dto, $options),
+            'change_password' => $this->handleChangePassword($dto, $options),
             default => ['success' => false, 'error' => 'Unknown action type: ' . $actionType],
         };
     }
@@ -152,6 +153,51 @@ class ActionRouter {
             return ['success' => true, 'member_id' => $memberId];
         }
         
+        return $result;
+    }
+
+    /**
+     * Handle password change.
+     */
+    private function handleChangePassword(MemberDTO $dto, array $options): array {
+        // Find existing member
+        $member = null;
+
+        if (!empty($dto->email)) {
+            $member = $this->swpmService->getMemberByEmail($dto->email);
+        }
+
+        if (!$member && !empty($dto->username)) {
+            $member = $this->swpmService->getMemberByUsername($dto->username);
+        }
+
+        if (!$member) {
+            return [
+                'success' => false,
+                'error' => __('Member not found', 'wpforms-swpm-bridge'),
+            ];
+        }
+
+        $memberId = (int) $member['member_id'];
+
+        // Verify current password
+        if (!$this->swpmService->verifyMemberPassword($memberId, $dto->currentPassword)) {
+            return [
+                'success' => false,
+                'error' => __('Current password is incorrect', 'wpforms-swpm-bridge'),
+            ];
+        }
+
+        // Create minimal DTO with only new password
+        $passwordDto = new MemberDTO();
+        $passwordDto->password = $dto->password;
+
+        $result = $this->swpmService->updateMember($memberId, $passwordDto);
+
+        if ($result['success']) {
+            return ['success' => true, 'member_id' => $memberId];
+        }
+
         return $result;
     }
 }

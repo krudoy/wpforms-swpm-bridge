@@ -12,6 +12,7 @@ class MemberDTO {
     public string $email = '';
     public string $username = '';
     public ?string $password = null;
+    public ?string $currentPassword = null;
     public int|string|null $membershipLevel = null;
     public ?string $firstName = null;
     public ?string $lastName = null;
@@ -45,6 +46,7 @@ class MemberDTO {
         $dto->email = $data['email'] ?? '';
         $dto->username = $data['username'] ?? '';
         $dto->password = $data['password'] ?? null;
+        $dto->currentPassword = $data['current_password'] ?? null;
         $dto->membershipLevel = $data['membership_level'] ?? $data['membershipLevel'] ?? null;
         $dto->firstName = $data['first_name'] ?? $data['firstName'] ?? null;
         $dto->lastName = $data['last_name'] ?? $data['lastName'] ?? null;
@@ -135,5 +137,12 @@ class MemberDTO {
      */
     public function hasPassword(): bool {
         return !empty($this->password);
+    }
+
+    /**
+     * Check if current password is set.
+     */
+    public function hasCurrentPassword(): bool {
+        return !empty($this->currentPassword);
     }
 }

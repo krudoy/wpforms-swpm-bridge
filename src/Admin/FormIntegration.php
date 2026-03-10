@@ -91,6 +91,9 @@ class FormIntegration {
                         <option value="change_level" <?php selected($config['action_type'] ?? '', 'change_level'); ?>>
                             <?php esc_html_e('Change Membership Level', 'wpforms-swpm-bridge'); ?>
                         </option>
+                        <option value="change_password" <?php selected($config['action_type'] ?? '', 'change_password'); ?>>
+                            <?php esc_html_e('Change Password', 'wpforms-swpm-bridge'); ?>
+                        </option>
                     </select>
                 </div>
                 

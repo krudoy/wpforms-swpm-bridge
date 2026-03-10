@@ -338,6 +338,35 @@ class SwpmService {
         
         return $result ?: null;
     }
+
+    /**
+     * Verify a member's password.
+     *
+     * @param int $memberId The member ID.
+     * @param string $password The password to verify.
+     * @return bool True if password matches.
+     */
+    public function verifyMemberPassword(int $memberId, string $password): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'swpm_members_tbl';
+
+        $storedHash = $wpdb->get_var($wpdb->prepare(
+            "SELECT password FROM {$table} WHERE member_id = %d",
+            $memberId
+        ));
+
+        if (!$storedHash) {
+            return false;
+        }
+
+        // SwpmUtils::check_password handles the hash verification
+        if (class_exists('SwpmUtils') && method_exists('SwpmUtils', 'check_password')) {
+            return \SwpmUtils::check_password($password, $storedHash);
+        }
+
+        // Fallback to WordPress password check
+        return wp_check_password($password, $storedHash);
+    }
     
     /**
      * Get member by ID.

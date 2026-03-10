@@ -14,6 +14,7 @@ class MemberValidator {
     public const ACTION_REGISTER = 'register_member';
     public const ACTION_UPDATE = 'update_member';
     public const ACTION_CHANGE_LEVEL = 'change_level';
+    public const ACTION_CHANGE_PASSWORD = 'change_password';
     
     /**
      * Required fields per action type.
@@ -22,6 +23,7 @@ class MemberValidator {
         self::ACTION_REGISTER => ['email', 'username', 'membershipLevel'],
         self::ACTION_UPDATE => [], // At least one identifier required
         self::ACTION_CHANGE_LEVEL => ['membershipLevel'], // Plus identifier
+        self::ACTION_CHANGE_PASSWORD => ['password'],
     ];
     
     /**
@@ -44,6 +46,10 @@ class MemberValidator {
                 
             case self::ACTION_CHANGE_LEVEL:
                 $errors = $this->validateChangeLevel($dto, $options);
+                break;
+
+            case self::ACTION_CHANGE_PASSWORD:
+                $errors = $this->validateChangePassword($dto, $options);
                 break;
                 
             default:
@@ -138,6 +144,30 @@ class MemberValidator {
             $errors['membership_level'] = __('Invalid membership level', 'wpforms-swpm-bridge');
         }
         
+        return $errors;
+    }
+
+    /**
+     * Validate for password change.
+     */
+    private function validateChangePassword(MemberDTO $dto, array $options): array {
+        $errors = [];
+
+        // Need at least one identifier
+        if (empty($dto->email) && empty($dto->username)) {
+            $errors['identifier'] = __('Email or username is required to identify the member', 'wpforms-swpm-bridge');
+        }
+
+        // Current password required
+        if (!$dto->hasCurrentPassword()) {
+            $errors['current_password'] = __('Current password is required', 'wpforms-swpm-bridge');
+        }
+
+        // New password required
+        if (!$dto->hasPassword()) {
+            $errors['password'] = __('New password is required', 'wpforms-swpm-bridge');
+        }
+
         return $errors;
     }
     

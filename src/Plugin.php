@@ -8,6 +8,7 @@ use SWPMWPForms\Admin\FormIntegration;
 use SWPMWPForms\Admin\SettingsPage;
 use SWPMWPForms\Handlers\SubmissionHandler;
 use SWPMWPForms\Handlers\ShortcodeDisplayHandler;
+use SWPMWPForms\Services\SwpmService;
 use SWPMWPForms\Shortcodes\ProfileShortcode;
 use SWPMWPForms\Blocks\ProfileBlock;
 
@@ -82,6 +83,8 @@ final class Plugin {
      * Initialize submission handlers.
      */
     private function initHandlers(): void {
+        SwpmService::instance()->initAvatarHooks();
+
         $submissionHandler = new SubmissionHandler();
         $submissionHandler->init();
 

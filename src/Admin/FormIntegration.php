@@ -514,7 +514,7 @@ class FormIntegration {
      * WPForms saves field_map_custom separately. This method merges them at read time
      * so 'custom_' + field_map_custom[id] becomes 'custom_keyname'.
      */
-    public function getFieldMapWithCustomKeys(array $config): array {
+    public static function getFieldMapWithCustomKeys(array $config): array {
         $fieldMap = $config['field_map'] ?? [];
         $customMap = $config['field_map_custom'] ?? [];
         

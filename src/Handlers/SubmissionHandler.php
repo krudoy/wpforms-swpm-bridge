@@ -60,6 +60,7 @@ class SubmissionHandler {
         
         // Get form integration config
         $config = FormIntegration::getConfig((int) $formData['id']);
+        $config['field_map'] = FormIntegration::getFieldMapWithCustomKeys($config);
         if (empty($config['enabled'])) {
             return;
         }
@@ -111,7 +112,7 @@ class SubmissionHandler {
                 }
                 
                 // Store error for display
-                $this->storeError($formData['id'], $result['error'] ?? __('Membership action failed', 'wpforms-swpm-bridge'));
+                $this->storeError((int) $formData['id'], $result['error'] ?? __('Membership action failed', 'wpforms-swpm-bridge'));
                 return;
             }
             
@@ -146,7 +147,7 @@ class SubmissionHandler {
                 'error' => $e->getMessage(),
             ]);
             
-            $this->storeError($formData['id'], __('An error occurred processing your membership.', 'wpforms-swpm-bridge'));
+            $this->storeError((int) $formData['id'], __('An error occurred processing your membership.', 'wpforms-swpm-bridge'));
         }
     }
     
@@ -155,6 +156,7 @@ class SubmissionHandler {
      */
     public function addValidationErrors(array $errors, array $formData): array {
         $config = FormIntegration::getConfig((int) $formData['id']);
+        $config['field_map'] = FormIntegration::getFieldMapWithCustomKeys($config);
         if (empty($config['enabled'])) {
             return $errors;
         }
@@ -254,14 +256,36 @@ class SubmissionHandler {
             
             // Handle file upload fields (for profile picture)
             if (($field['type'] ?? '') === 'file-upload' && $swpmField === 'wp_avatar') {
-                $fileUrl = $field['value'] ?? '';
-                if (!empty($fileUrl)) {
+                $fileValue = $field['value'] ?? '';
+                $fileUrl = '';
+
+                if (is_string($fileValue)) {
+                    $decoded = json_decode($fileValue, true);
+
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        if (is_array($decoded) && isset($decoded[0]['url'])) {
+                            $fileUrl = (string) $decoded[0]['url'];
+                        } elseif (is_array($decoded) && isset($decoded['url'])) {
+                            $fileUrl = (string) $decoded['url'];
+                        }
+                    } else {
+                        $fileUrl = $fileValue;
+                    }
+                } elseif (is_array($fileValue)) {
+                    if (isset($fileValue[0]['url'])) {
+                        $fileUrl = (string) $fileValue[0]['url'];
+                    } elseif (isset($fileValue['url'])) {
+                        $fileUrl = (string) $fileValue['url'];
+                    }
+                }
+
+                if ($fileUrl !== '') {
                     $data[$swpmField] = $fileUrl;
                 }
                 continue;
             }
             
-            $data[$swpmField] = $this->normalizeMappedFieldValue($field['value'] ?? '');
+            $data[$swpmField] = $this->normalizeMappedFieldValue($field['value'] ?? '', $swpmField);
         }
         
         // Use fixed membership level if set, otherwise from field map
@@ -332,7 +356,7 @@ class SubmissionHandler {
                 continue;
             }
             
-            $data[$swpmField] = $this->normalizeMappedFieldValue($postFields[$mappingKey]);
+            $data[$swpmField] = $this->normalizeMappedFieldValue($postFields[$mappingKey], $swpmField);
         }
         
         // Membership level handling
@@ -348,13 +372,20 @@ class SubmissionHandler {
     /**
      * Normalize mapped field values from WPForms processed or raw POST payloads.
      */
-    private function normalizeMappedFieldValue($value): string {
+    private function normalizeMappedFieldValue($value, string $swpmField = ''): string {
         if (!is_array($value)) {
             return is_scalar($value) ? (string) $value : '';
         }
 
         if (array_key_exists('value', $value)) {
-            return $this->normalizeMappedFieldValue($value['value']);
+            return $this->normalizeMappedFieldValue($value['value'], $swpmField);
+        }
+
+        if (
+            in_array($swpmField, ['email', 'password'], true)
+            && array_key_exists('primary', $value)
+        ) {
+            return $this->normalizeMappedFieldValue($value['primary'], $swpmField);
         }
 
         $normalized = [];

@@ -25,6 +25,14 @@ class SwpmService {
     private function __construct() {
         $this->logger = Logger::instance();
     }
+
+    /**
+     * Register WordPress avatar hooks.
+     */
+    public function initAvatarHooks(): void {
+        add_filter('pre_get_avatar_data', [$this, 'filterAvatarData'], 20, 2);
+        add_filter('get_avatar_data', [$this, 'filterAvatarData'], 20, 2);
+    }
     
     /**
      * Register a new member.
@@ -90,7 +98,7 @@ class SwpmService {
             }
             
             // Calculate subscription end date based on level
-            $level = \SwpmMembershipLevelUtils::get_level_info($dto->membershipLevel);
+            $level = $this->getMembershipLevelRow((int) $dto->membershipLevel);
             if ($level) {
                 $duration = $level->subscription_duration_type;
                 if ($duration == \SwpmMembershipLevel::FIXED_DATE) {
@@ -112,9 +120,22 @@ class SwpmService {
             }
             
             $member_id = $wpdb->insert_id;
+            $requiresWpUserLink = $this->requiresWpUserLink($dto);
             
             // Create WP user if settings require it
-            $this->maybeCreateWpUser($dto, $member_id);
+            $wpUserResult = $this->maybeCreateWpUser($dto, $member_id);
+            if ($requiresWpUserLink && !$wpUserResult['success']) {
+                $deleteResult = $wpdb->delete($table, ['member_id' => $member_id], ['%d']);
+
+                if ($deleteResult === false) {
+                    $this->logger->error('Failed to remove member after WP user link failure', [
+                        'member_id' => $member_id,
+                        'error' => $wpdb->last_error,
+                    ]);
+                }
+
+                return ['success' => false, 'error' => $wpUserResult['error'] ?? 'Failed to create or link WordPress user'];
+            }
             
             // Save custom meta
             if (!empty($dto->customMeta)) {
@@ -247,7 +268,7 @@ class SwpmService {
             $table = $wpdb->prefix . 'swpm_members_tbl';
             
             // Verify level exists
-            $level = \SwpmMembershipLevelUtils::get_level_info($newLevel);
+            $level = $this->getMembershipLevelRow((int) $newLevel);
             if (!$level) {
                 return ['success' => false, 'error' => 'Invalid membership level'];
             }
@@ -343,65 +364,96 @@ class SwpmService {
         
         return \SwpmMembershipLevelUtils::get_all_membership_levels_in_array() ?: [];
     }
+
+    /**
+     * Load a membership level row using installed SWPM APIs.
+     */
+    private function getMembershipLevelRow(int $levelId): ?object {
+        if (
+            !class_exists('SwpmMembershipLevelUtils')
+            || !method_exists('SwpmMembershipLevelUtils', 'check_if_membership_level_exists')
+            || !\SwpmMembershipLevelUtils::check_if_membership_level_exists($levelId)
+        ) {
+            return null;
+        }
+
+        if (!class_exists('SwpmUtils') || !method_exists('SwpmUtils', 'get_membership_level_row_by_id')) {
+            return null;
+        }
+
+        $level = \SwpmUtils::get_membership_level_row_by_id($levelId);
+
+        return is_object($level) ? $level : null;
+    }
     
     /**
-     * Create WordPress user if SWPM settings require it.
+     * Create or link the corresponding WordPress user via native SWPM APIs.
      */
-    private function maybeCreateWpUser(MemberDTO $dto, int $memberId): void {
-        // Check SWPM settings for auto WP user creation
-        $settings = \SwpmSettings::get_instance();
-        if (!$settings->get_value('enable-auto-create-swpm-use-wp-user')) {
-            return;
-        }
-        
-        // Create WP user
-        $wp_user_id = wp_create_user(
-            $dto->username,
-            $dto->password,
-            $dto->email
-        );
-        
-        if (is_wp_error($wp_user_id)) {
-            $this->logger->warning('Failed to create WP user', [
+    private function maybeCreateWpUser(MemberDTO $dto, int $memberId): array {
+        if (!class_exists('SwpmUtils') || !method_exists('SwpmUtils', 'create_wp_user')) {
+            $this->logger->warning('SWPM create_wp_user API unavailable', [
                 'member_id' => $memberId,
-                'error' => $wp_user_id->get_error_message(),
             ]);
-            return;
+            return ['success' => false, 'error' => 'SWPM create_wp_user API unavailable'];
         }
-        
-        // Update member with WP user ID
-        global $wpdb;
-        $wpdb->update(
-            $wpdb->prefix . 'swpm_members_tbl',
-            ['wp_user_id' => $wp_user_id],
-            ['member_id' => $memberId]
-        );
-        
-        // Update WP user profile
+
+        $level = $this->getMembershipLevelRow((int) $dto->membershipLevel);
+
         $wpUserData = [
-            'ID' => $wp_user_id,
-            'first_name' => $dto->firstName,
-            'last_name' => $dto->lastName,
+            'user_nicename' => implode('-', preg_split('/\s+/', trim($dto->username)) ?: [$dto->username]),
             'display_name' => $dto->wpDisplayName ?? $dto->getDisplayName(),
+            'user_email' => $dto->email,
+            'nickname' => $dto->wpNickname ?? $dto->username,
+            'user_login' => $dto->username,
+            'password' => $dto->password,
+            'role' => is_object($level) && isset($level->role) ? (string) $level->role : '',
+            'user_registered' => current_time('mysql'),
         ];
-        
-        // Add additional WP user fields
-        if ($dto->wpNickname !== null) {
-            $wpUserData['nickname'] = $dto->wpNickname;
+
+        if ($dto->firstName !== null) {
+            $wpUserData['first_name'] = $dto->firstName;
         }
+
+        if ($dto->lastName !== null) {
+            $wpUserData['last_name'] = $dto->lastName;
+        }
+
         if ($dto->wpDescription !== null) {
             $wpUserData['description'] = $dto->wpDescription;
         }
+
         if ($dto->wpUserUrl !== null) {
             $wpUserData['user_url'] = $dto->wpUserUrl;
         }
-        
-        wp_update_user($wpUserData);
-        
-        // Set profile picture if provided
-        if ($dto->wpAvatar !== null) {
-            $this->setUserAvatar($wp_user_id, $dto->wpAvatar);
+
+        $wp_user_id = \SwpmUtils::create_wp_user($wpUserData);
+
+        if (is_wp_error($wp_user_id) || !is_numeric($wp_user_id) || (int) $wp_user_id <= 0) {
+            $error = is_wp_error($wp_user_id) ? $wp_user_id->get_error_message() : 'Invalid WP user ID returned';
+            $this->logger->warning('Failed to create or link WP user', [
+                'member_id' => $memberId,
+                'error' => $error,
+            ]);
+            return ['success' => false, 'error' => $error];
         }
+
+        if ($dto->wpAvatar !== null) {
+            $this->setUserAvatar((int) $wp_user_id, $dto->wpAvatar);
+            $this->saveMemberProfileImage($memberId, $dto->wpAvatar);
+        }
+
+        return ['success' => true, 'wp_user_id' => (int) $wp_user_id];
+    }
+
+    /**
+     * Determine whether registration requires a linked WordPress user.
+     */
+    private function requiresWpUserLink(MemberDTO $dto): bool {
+        return $dto->wpDisplayName !== null
+            || $dto->wpNickname !== null
+            || $dto->wpDescription !== null
+            || $dto->wpUserUrl !== null
+            || $dto->wpAvatar !== null;
     }
     
     /**
@@ -413,13 +465,26 @@ class SwpmService {
             return;
         }
         
-        // Get the member's WP user ID
         $member = $this->getMemberById($memberId);
-        if (!$member || empty($member['wp_user_id'])) {
+        if (!$member) {
             return;
         }
-        
-        $wpUserId = (int) $member['wp_user_id'];
+
+        $wpUser = null;
+
+        if (!empty($member['user_name'])) {
+            $wpUser = get_user_by('login', (string) $member['user_name']);
+        }
+
+        if (!$wpUser instanceof \WP_User && !empty($member['email'])) {
+            $wpUser = get_user_by('email', (string) $member['email']);
+        }
+
+        if (!$wpUser instanceof \WP_User) {
+            return;
+        }
+
+        $wpUserId = (int) $wpUser->ID;
         
         $wpUserData = ['ID' => $wpUserId];
         
@@ -449,28 +514,237 @@ class SwpmService {
         // Set profile picture if provided
         if ($dto->wpAvatar !== null) {
             $this->setUserAvatar($wpUserId, $dto->wpAvatar);
+            $this->saveMemberProfileImage($memberId, $dto->wpAvatar);
         }
+    }
+
+    /**
+     * Persist avatar URL to the SWPM member profile image field.
+     */
+    private function saveMemberProfileImage(int $memberId, string|int $avatar): void {
+        $avatarUrl = is_numeric($avatar)
+            ? (string) wp_get_attachment_url((int) $avatar)
+            : (string) $avatar;
+
+        if ($avatarUrl === '') {
+            return;
+        }
+
+        global $wpdb;
+
+        $wpdb->update(
+            $wpdb->prefix . 'swpm_members_tbl',
+            ['profile_image' => esc_url_raw($avatarUrl)],
+            ['member_id' => $memberId],
+            ['%s'],
+            ['%d']
+        );
     }
     
     /**
      * Set user avatar/profile picture.
      */
     private function setUserAvatar(int $wpUserId, string|int $avatar): void {
-        $avatarUrl = (string) $avatar;
-        
-        // Store avatar URL in user meta
-        update_user_meta($wpUserId, 'swpm_wpforms_avatar', $avatarUrl);
-        
-        // Also try attachment ID for plugin compatibility
-        $attachmentId = attachment_url_to_postid($avatarUrl);
-        if ($attachmentId) {
-            update_user_meta($wpUserId, 'wp_user_avatar', $attachmentId);
+        $attachmentId = is_numeric($avatar) ? (int) $avatar : 0;
+        $avatarUrl = '';
+
+        if ($attachmentId > 0) {
+            $avatarUrl = (string) wp_get_attachment_url($attachmentId);
+        } else {
+            $avatarUrl = (string) $avatar;
+            $attachmentId = attachment_url_to_postid($avatarUrl);
+
+            if ($attachmentId <= 0 && !empty($avatarUrl)) {
+                if (!function_exists('download_url')) {
+                    require_once ABSPATH . 'wp-admin/includes/file.php';
+                }
+                if (!function_exists('media_handle_sideload')) {
+                    require_once ABSPATH . 'wp-admin/includes/media.php';
+                }
+                if (!function_exists('wp_generate_attachment_metadata')) {
+                    require_once ABSPATH . 'wp-admin/includes/image.php';
+                }
+
+                $tempFile = null;
+                $uploads = wp_upload_dir();
+
+                if (!empty($uploads['baseurl']) && !empty($uploads['basedir']) && str_starts_with($avatarUrl, $uploads['baseurl'])) {
+                    $localFile = wp_normalize_path(str_replace($uploads['baseurl'], $uploads['basedir'], $avatarUrl));
+
+                    if (is_file($localFile) && is_readable($localFile)) {
+                        $tempFile = wp_tempnam(wp_basename($localFile));
+
+                        if ($tempFile && !@copy($localFile, $tempFile)) {
+                            @unlink($tempFile);
+                            $tempFile = null;
+                        }
+                    }
+                }
+
+                if ($tempFile === null) {
+                    $tempFile = download_url($avatarUrl);
+                }
+
+                if (!is_wp_error($tempFile)) {
+                    $fileArray = [
+                        'name' => wp_basename((string) parse_url($avatarUrl, PHP_URL_PATH)),
+                        'tmp_name' => $tempFile,
+                    ];
+
+                    $sideloadedId = media_handle_sideload($fileArray, 0);
+
+                    if (is_wp_error($sideloadedId)) {
+                        @unlink($tempFile);
+                        $this->logger->warning('Failed to sideload avatar into media library', [
+                            'wp_user_id' => $wpUserId,
+                            'avatar_url' => $avatarUrl,
+                            'error' => $sideloadedId->get_error_message(),
+                        ]);
+                    } else {
+                        $attachmentId = (int) $sideloadedId;
+                        $avatarUrl = (string) wp_get_attachment_url($attachmentId);
+                    }
+                } else {
+                    $this->logger->warning('Failed to download avatar for sideload', [
+                        'wp_user_id' => $wpUserId,
+                        'avatar_url' => $avatarUrl,
+                        'error' => $tempFile->get_error_message(),
+                    ]);
+                }
+            }
         }
-        
+
+        if (!empty($avatarUrl)) {
+            update_user_meta($wpUserId, 'swpm_wpforms_avatar', $avatarUrl);
+        }
+
+        if ($attachmentId > 0) {
+            update_user_meta($wpUserId, 'wp_user_avatar', $attachmentId);
+            update_user_meta($wpUserId, 'simple_local_avatar', [
+                'media_id' => $attachmentId,
+                'full' => $avatarUrl,
+                'blog_id' => get_current_blog_id(),
+            ]);
+        }
+
         $this->logger->debug('User avatar set', [
             'wp_user_id' => $wpUserId,
             'avatar_url' => $avatarUrl,
+            'attachment_id' => $attachmentId,
         ]);
+    }
+
+    /**
+     * Override avatar data with the stored local attachment when available.
+     *
+     * @param array<string, mixed> $args
+     * @return array<string, mixed>
+     */
+    public function filterAvatarData(array $args, $idOrEmail): array {
+        $wpUserId = $this->resolveAvatarUserId($idOrEmail);
+        if ($wpUserId <= 0) {
+            return $args;
+        }
+
+        $avatar = $this->getUserAvatarData($wpUserId, (int) ($args['size'] ?? 96));
+        if ($avatar === null) {
+            return $args;
+        }
+
+        $args['url'] = $avatar['url'];
+        $args['found_avatar'] = true;
+
+        return $args;
+    }
+
+    /**
+     * Resolve local avatar data for a WordPress user.
+     *
+     * @return array{attachment_id: int, url: string}|null
+     */
+    public function getUserAvatarData(int $wpUserId, int $size = 96): ?array {
+        $attachmentId = (int) get_user_meta($wpUserId, 'wp_user_avatar', true);
+        $avatarUrl = '';
+
+        if ($attachmentId > 0) {
+            $avatarUrl = (string) wp_get_attachment_image_url($attachmentId, [$size, $size]);
+
+            if ($avatarUrl === '') {
+                $avatarUrl = (string) wp_get_attachment_url($attachmentId);
+            }
+        }
+
+        if ($avatarUrl === '') {
+            $avatarUrl = (string) get_user_meta($wpUserId, 'swpm_wpforms_avatar', true);
+        }
+
+        if ($avatarUrl === '') {
+            return null;
+        }
+
+        return [
+            'attachment_id' => $attachmentId,
+            'url' => $avatarUrl,
+        ];
+    }
+
+    /**
+     * Resolve a WordPress user ID from avatar hook input.
+     */
+    private function resolveAvatarUserId($idOrEmail): int {
+        if ($idOrEmail instanceof \WP_User) {
+            return (int) $idOrEmail->ID;
+        }
+
+        if ($idOrEmail instanceof \WP_Post) {
+            return (int) $idOrEmail->post_author;
+        }
+
+        if ($idOrEmail instanceof \WP_Comment) {
+            if (!empty($idOrEmail->user_id)) {
+                return (int) $idOrEmail->user_id;
+            }
+
+            if (!empty($idOrEmail->comment_author_email)) {
+                $user = get_user_by('email', (string) $idOrEmail->comment_author_email);
+
+                return $user instanceof \WP_User ? (int) $user->ID : 0;
+            }
+
+            return 0;
+        }
+
+        if (is_numeric($idOrEmail)) {
+            return (int) $idOrEmail;
+        }
+
+        if (is_object($idOrEmail) && isset($idOrEmail->user_id)) {
+            return (int) $idOrEmail->user_id;
+        }
+
+        if (is_string($idOrEmail) && $idOrEmail !== '') {
+            if (preg_match('/^[a-f0-9]{32}$/i', $idOrEmail) === 1) {
+                $users = get_users([
+                    'fields' => ['ID', 'user_email'],
+                    'number' => -1,
+                ]);
+
+                foreach ($users as $user) {
+                    $email = isset($user->user_email) ? trim((string) $user->user_email) : '';
+                    if ($email !== '' && md5(strtolower($email)) === strtolower($idOrEmail)) {
+                        return isset($user->ID) ? (int) $user->ID : 0;
+                    }
+                }
+
+                return 0;
+            }
+
+            $user = get_user_by('email', $idOrEmail);
+
+            return $user instanceof \WP_User ? (int) $user->ID : 0;
+        }
+
+        return 0;
     }
     
     /**

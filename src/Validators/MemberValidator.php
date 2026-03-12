@@ -153,8 +153,12 @@ class MemberValidator {
     private function validateChangePassword(MemberDTO $dto, array $options): array {
         $errors = [];
 
-        // Need at least one identifier
-        if (empty($dto->email) && empty($dto->username)) {
+        $hasIdentifier = !empty($dto->email) || !empty($dto->username);
+        $hasLoggedInMember = class_exists('SwpmMemberUtils')
+            && (int) \SwpmMemberUtils::get_logged_in_members_id() > 0;
+
+        // Need an explicit identifier or logged-in SWPM member
+        if (!$hasIdentifier && !$hasLoggedInMember) {
             $errors['identifier'] = __('Email or username is required to identify the member', 'wpforms-swpm-bridge');
         }
 

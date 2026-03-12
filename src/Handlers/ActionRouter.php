@@ -171,6 +171,13 @@ class ActionRouter {
             $member = $this->swpmService->getMemberByUsername($dto->username);
         }
 
+        if (!$member && class_exists('SwpmMemberUtils')) {
+            $loggedInMemberId = (int) \SwpmMemberUtils::get_logged_in_members_id();
+            if ($loggedInMemberId > 0) {
+                $member = $this->swpmService->getMemberById($loggedInMemberId);
+            }
+        }
+
         if (!$member) {
             return [
                 'success' => false,
@@ -181,7 +188,7 @@ class ActionRouter {
         $memberId = (int) $member['member_id'];
 
         // Verify current password
-        if (!$this->swpmService->verifyMemberPassword($memberId, $dto->currentPassword)) {
+        if (!$this->swpmService->verifyMemberPassword($memberId, (string) ($dto->currentPassword ?? ''))) {
             return [
                 'success' => false,
                 'error' => __('Current password is incorrect', 'wpforms-swpm-bridge'),

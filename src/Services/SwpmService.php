@@ -490,7 +490,7 @@ class SwpmService {
      */
     private function maybeUpdateWpUser(int $memberId, MemberDTO $dto): void {
         $wpFields = $dto->getWpUserFields();
-        if (empty($wpFields) && $dto->firstName === null && $dto->lastName === null && $dto->wpAvatar === null) {
+        if (empty($wpFields) && $dto->firstName === null && $dto->lastName === null && $dto->wpAvatar === null && !$dto->hasPassword()) {
             return;
         }
         
@@ -534,6 +534,9 @@ class SwpmService {
         }
         if ($dto->wpUserUrl !== null) {
             $wpUserData['user_url'] = $dto->wpUserUrl;
+        }
+        if ($dto->hasPassword()) {
+            $wpUserData['user_pass'] = $dto->password;
         }
         
         if (count($wpUserData) > 1) {
@@ -780,12 +783,35 @@ class SwpmService {
      * Save custom meta fields for a member.
      */
     private function saveCustomMeta(int $memberId, array $meta): void {
-        if (!class_exists('SwpmMemberUtils')) {
+        if (empty($meta)) {
             return;
         }
         
         foreach ($meta as $key => $value) {
-            \SwpmMemberUtils::update_member_field($memberId, $key, $value);
+            if (class_exists('SwpmMemberUtils') && method_exists('SwpmMemberUtils', 'update_member_field')) {
+                \SwpmMemberUtils::update_member_field($memberId, $key, $value);
+                continue;
+            }
+
+            global $wpdb;
+            $table = $wpdb->prefix . 'swpm_members_tbl';
+
+            $columnExists = (bool) $wpdb->get_var(
+                $wpdb->prepare(
+                    "SHOW COLUMNS FROM {$table} LIKE %s",
+                    $key
+                )
+            );
+
+            if ($columnExists) {
+                $wpdb->update($table, [$key => $value], ['member_id' => $memberId]);
+                continue;
+            }
+
+            $this->logger->warning('Skipping unsupported SWPM custom field update', [
+                'member_id' => $memberId,
+                'field' => $key,
+            ]);
         }
     }
 }

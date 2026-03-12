@@ -91,7 +91,13 @@ class FormIntegration {
                         <option value="change_level" <?php selected($config['action_type'] ?? '', 'change_level'); ?>>
                             <?php esc_html_e('Change Membership Level', 'wpforms-swpm-bridge'); ?>
                         </option>
+                        <option value="change_password" <?php selected($config['action_type'] ?? '', 'change_password'); ?>>
+                            <?php esc_html_e('Change Password', 'wpforms-swpm-bridge'); ?>
+                        </option>
                     </select>
+                    <p class="description" style="margin-top: 8px; color: #666;">
+                        <?php esc_html_e('Change Password: Requires mapping both a "Current Password" field and a "Password" field. The current password is verified before allowing the change.', 'wpforms-swpm-bridge'); ?>
+                    </p>
                 </div>
                 
                 <!-- Field Mapping -->
@@ -331,6 +337,7 @@ class FormIntegration {
                 'email' => __('Email', 'wpforms-swpm-bridge'),
                 'username' => __('Username', 'wpforms-swpm-bridge'),
                 'password' => __('Password', 'wpforms-swpm-bridge'),
+                'current_password' => __('Current Password (for change)', 'wpforms-swpm-bridge'),
                 'first_name' => __('First Name', 'wpforms-swpm-bridge'),
                 'last_name' => __('Last Name', 'wpforms-swpm-bridge'),
                 'membership_level' => __('Membership Level', 'wpforms-swpm-bridge'),

@@ -46,6 +46,9 @@ class SubmissionHandler {
         
         // Filter to block notifications on integration failure
         add_filter('wpforms_entry_email_send', [$this, 'maybeBlockNotifications'], 10, 5);
+
+        // Replace success confirmation with integration error when post-submit SWPM action fails
+        add_filter('wpforms_frontend_confirmation_message', [$this, 'maybeReplaceConfirmationMessage'], 10, 3);
     }
     
     /**
@@ -104,7 +107,7 @@ class SubmissionHandler {
                 ]);
                 
                 // Store failure state to block standard notifications
-                $this->storeIntegrationResult($formData['id'], false);
+                $this->storeIntegrationResult((int) $formData['id'], false);
                 
                 // Send admin failure notification if enabled
                 if (!empty($config['options']['notify_admin_on_failure'])) {
@@ -117,7 +120,7 @@ class SubmissionHandler {
             }
             
             // Store success state to allow standard notifications
-            $this->storeIntegrationResult($formData['id'], true);
+            $this->storeIntegrationResult((int) $formData['id'], true);
             
             $this->logger->info('SWPM action completed', [
                 'form_id' => $formData['id'],
@@ -147,7 +150,12 @@ class SubmissionHandler {
                 'error' => $e->getMessage(),
             ]);
             
-            $this->storeError((int) $formData['id'], __('An error occurred processing your membership.', 'wpforms-swpm-bridge'));
+            $message = trim($e->getMessage());
+            if ($message === '') {
+                $message = __('An error occurred processing your membership.', 'wpforms-swpm-bridge');
+            }
+
+            $this->storeError((int) $formData['id'], $message);
         }
     }
     
@@ -460,7 +468,11 @@ class SubmissionHandler {
      * Store integration result for notification filtering.
      */
     private function storeIntegrationResult(int $formId, bool $success): void {
-        set_transient('swpm_wpforms_result_' . $formId . '_' . get_current_user_id(), $success, 60);
+        set_transient(
+            'swpm_wpforms_result_' . $formId . '_' . get_current_user_id(),
+            $success ? 'success' : 'failure',
+            60
+        );
     }
     
     /**
@@ -468,7 +480,29 @@ class SubmissionHandler {
      */
     private function getIntegrationResult(int $formId): ?bool {
         $result = get_transient('swpm_wpforms_result_' . $formId . '_' . get_current_user_id());
-        return $result === false ? null : $result;
+
+        if ($result === false || $result === '' || $result === null) {
+            return null;
+        }
+
+        if ($result === 'failure') {
+            return false;
+        }
+
+        if ($result === 'success') {
+            return true;
+        }
+
+        return (bool) $result;
+    }
+
+    /**
+     * Get stored integration error.
+     */
+    private function getStoredError(int $formId): string {
+        $error = get_transient('swpm_wpforms_error_' . $formId);
+
+        return is_string($error) ? $error : '';
     }
     
     /**
@@ -493,6 +527,28 @@ class SubmissionHandler {
         }
         
         return $send;
+    }
+
+    /**
+     * Replace WPForms success confirmation with integration failure message when needed.
+     */
+    public function maybeReplaceConfirmationMessage(string $message, array $formData, array $fields = []): string {
+        $config = FormIntegration::getConfig((int) $formData['id']);
+        if (empty($config['enabled'])) {
+            return $message;
+        }
+
+        $result = $this->getIntegrationResult((int) $formData['id']);
+        if ($result !== false) {
+            return $message;
+        }
+
+        $error = $this->getStoredError((int) $formData['id']);
+        if ($error === '') {
+            $error = __('Membership action failed', 'wpforms-swpm-bridge');
+        }
+
+        return sprintf('<div class="wpforms-error-container">%s</div>', esc_html($error));
     }
     
     /**

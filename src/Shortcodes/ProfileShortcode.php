@@ -17,7 +17,7 @@ class ProfileShortcode {
     private array $fieldMap = [];
     private array $formFields = [];
     
-    private const EXCLUDED_FIELDS = ['password'];
+    private const EXCLUDED_FIELDS = ['password', 'current_password'];
     private const SKIP_FIELD_TYPES = ['pagebreak', 'captcha', 'entry-preview', 'password', 'hidden'];
     private const STRUCTURAL_FIELD_TYPES = ['divider', 'html', 'content'];
     private const COMPOUND_FIELD_TYPES = ['name', 'address'];

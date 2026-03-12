@@ -49,6 +49,68 @@ class SubmissionHandler {
 
         // Replace success confirmation with integration error when post-submit SWPM action fails
         add_filter('wpforms_frontend_confirmation_message', [$this, 'maybeReplaceConfirmationMessage'], 10, 3);
+
+        // Prepopulate logged-in member values into update forms
+        add_filter('wpforms_field_properties', [$this, 'maybePrepopulateFieldProperties'], 10, 3);
+    }
+
+    /**
+     * Prepopulate Update Member forms for the logged-in SWPM member.
+     */
+    public function maybePrepopulateFieldProperties(array $properties, array $field, array $formData): array {
+        $formId = (int) ($formData['id'] ?? 0);
+        if ($formId <= 0) {
+            return $properties;
+        }
+
+        $config = FormIntegration::getConfig($formId);
+        $config['field_map'] = FormIntegration::getFieldMapWithCustomKeys($config);
+        $config['options']['current_password_mapped'] = in_array('current_password', $config['field_map'] ?? [], true);
+
+        if (($config['action_type'] ?? '') !== 'update_member') {
+            return $properties;
+        }
+
+        if (!class_exists('SwpmMemberUtils')) {
+            return $properties;
+        }
+
+        $memberId = (int) \SwpmMemberUtils::get_logged_in_members_id();
+        if ($memberId <= 0) {
+            return $properties;
+        }
+
+        $member = $this->swpmService->getMemberById($memberId);
+        if (!$member) {
+            return $properties;
+        }
+
+        if (isset($properties['inputs']) && is_array($properties['inputs'])) {
+            foreach ($properties['inputs'] as $inputKey => &$input) {
+                if (!is_array($input)) {
+                    continue;
+                }
+
+                $mappingKey = $this->resolveInputMappingKey($field, (string) $inputKey);
+                $value = $this->resolvePrepopulatedValue($config['field_map'] ?? [], $mappingKey, $member);
+                if ($value === null) {
+                    continue;
+                }
+
+                $input['default'] = $value;
+                $input['attr']['value'] = $value;
+            }
+            unset($input);
+        }
+
+        $mappingKey = (string) ($field['id'] ?? '');
+        $value = $this->resolvePrepopulatedValue($config['field_map'] ?? [], $mappingKey, $member);
+        if ($value !== null) {
+            $properties['inputs']['primary']['default'] = $value;
+            $properties['inputs']['primary']['attr']['value'] = $value;
+        }
+
+        return $properties;
     }
     
     /**
@@ -64,6 +126,7 @@ class SubmissionHandler {
         // Get form integration config
         $config = FormIntegration::getConfig((int) $formData['id']);
         $config['field_map'] = FormIntegration::getFieldMapWithCustomKeys($config);
+        $config['options']['current_password_mapped'] = in_array('current_password', $config['field_map'] ?? [], true);
         if (empty($config['enabled'])) {
             return;
         }
@@ -165,6 +228,7 @@ class SubmissionHandler {
     public function addValidationErrors(array $errors, array $formData): array {
         $config = FormIntegration::getConfig((int) $formData['id']);
         $config['field_map'] = FormIntegration::getFieldMapWithCustomKeys($config);
+        $config['options']['current_password_mapped'] = in_array('current_password', $config['field_map'] ?? [], true);
         if (empty($config['enabled'])) {
             return $errors;
         }
@@ -293,7 +357,12 @@ class SubmissionHandler {
                 continue;
             }
             
-            $data[$swpmField] = $this->normalizeMappedFieldValue($field['value'] ?? '', $swpmField);
+            $rawValue = $field['value'] ?? '';
+            if (($field['type'] ?? '') === 'password' && is_array($rawValue)) {
+                $rawValue = $rawValue['primary'] ?? '';
+            }
+
+            $data[$swpmField] = $this->normalizeMappedFieldValue($rawValue, $swpmField);
         }
         
         // Use fixed membership level if set, otherwise from field map
@@ -364,8 +433,21 @@ class SubmissionHandler {
                 continue;
             }
             
-            $data[$swpmField] = $this->normalizeMappedFieldValue($postFields[$mappingKey], $swpmField);
+            $rawValue = $postFields[$mappingKey];
+            if (is_array($rawValue) && isset($rawValue['primary'])) {
+                $rawValue = $rawValue['primary'];
+            }
+
+            $data[$swpmField] = $this->normalizeMappedFieldValue($rawValue, $swpmField);
         }
+
+        $this->logger->debug('Built DTO data from POST', [
+            'field_map' => $fieldMap,
+            'current_password_present' => array_key_exists('current_password', $data),
+            'current_password_length' => isset($data['current_password']) ? strlen((string) $data['current_password']) : 0,
+            'password_present' => array_key_exists('password', $data),
+            'password_length' => isset($data['password']) ? strlen((string) $data['password']) : 0,
+        ]);
         
         // Membership level handling
         if (!empty($config['membership_level'])) {
@@ -375,6 +457,95 @@ class SubmissionHandler {
         }
         
         return MemberDTO::fromArray($data);
+    }
+
+    /**
+     * Resolve prepopulated field value from member data.
+     */
+    private function resolvePrepopulatedValue(array $fieldMap, string $mappingKey, array $member): ?string {
+        $swpmField = $fieldMap[$mappingKey] ?? null;
+        if (!$swpmField || in_array($swpmField, ['password', 'current_password'], true)) {
+            return null;
+        }
+
+        $columnMap = [
+            'email' => 'email',
+            'username' => 'user_name',
+            'first_name' => 'first_name',
+            'last_name' => 'last_name',
+            'membership_level' => 'membership_level',
+            'phone' => 'phone',
+            'address_street' => 'address_street',
+            'address_city' => 'address_city',
+            'address_state' => 'address_state',
+            'address_zipcode' => 'address_zipcode',
+            'country' => 'country',
+            'company' => 'company_name',
+            'gender' => 'gender',
+        ];
+
+        if (isset($columnMap[$swpmField])) {
+            return isset($member[$columnMap[$swpmField]]) ? (string) $member[$columnMap[$swpmField]] : null;
+        }
+
+        if (str_starts_with($swpmField, 'custom_') || str_starts_with($swpmField, 'swpm_')) {
+            global $wpdb;
+            $metaKey = str_starts_with($swpmField, 'custom_') ? substr($swpmField, 7) : substr($swpmField, 5);
+
+            return $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->prefix}swpm_members_meta WHERE member_id = %d AND meta_key = %s LIMIT 1",
+                (int) ($member['member_id'] ?? 0),
+                $metaKey
+            )) ?: null;
+        }
+
+        if (str_starts_with($swpmField, 'wp_')) {
+            $wpUser = null;
+            if (!empty($member['user_name'])) {
+                $wpUser = get_user_by('login', (string) $member['user_name']);
+            }
+            if (!$wpUser instanceof \WP_User && !empty($member['email'])) {
+                $wpUser = get_user_by('email', (string) $member['email']);
+            }
+            if (!$wpUser instanceof \WP_User) {
+                return null;
+            }
+
+            return match ($swpmField) {
+                'wp_display_name' => (string) $wpUser->display_name,
+                'wp_nickname' => (string) $wpUser->nickname,
+                'wp_description' => (string) $wpUser->description,
+                'wp_user_url' => (string) $wpUser->user_url,
+                default => null,
+            };
+        }
+
+        return isset($member[$swpmField]) ? (string) $member[$swpmField] : null;
+    }
+
+    private function resolveInputMappingKey(array $field, string $inputKey): string {
+        $fieldId = (string) ($field['id'] ?? '');
+
+        if (($field['type'] ?? '') === 'name') {
+            return match ($inputKey) {
+                'first' => $fieldId . '_first',
+                'last' => $fieldId . '_last',
+                default => $fieldId,
+            };
+        }
+
+        if (($field['type'] ?? '') === 'address') {
+            return match ($inputKey) {
+                'address1', 'address2' => $fieldId . '_street',
+                'city' => $fieldId . '_city',
+                'state' => $fieldId . '_state',
+                'postal' => $fieldId . '_postal',
+                'country' => $fieldId . '_country',
+                default => $fieldId,
+            };
+        }
+
+        return $fieldId;
     }
 
     /**

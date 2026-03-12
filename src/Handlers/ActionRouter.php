@@ -91,8 +91,15 @@ class ActionRouter {
     private function handleUpdate(MemberDTO $dto, array $options): array {
         // Find existing member
         $member = null;
+
+        if (class_exists('SwpmMemberUtils')) {
+            $loggedInMemberId = (int) \SwpmMemberUtils::get_logged_in_members_id();
+            if ($loggedInMemberId > 0) {
+                $member = $this->swpmService->getMemberById($loggedInMemberId);
+            }
+        }
         
-        if (!empty($dto->email)) {
+        if (!$member && !empty($dto->email)) {
             $member = $this->swpmService->getMemberByEmail($dto->email);
         }
         
@@ -108,6 +115,18 @@ class ActionRouter {
         }
         
         $memberId = (int) $member['member_id'];
+
+        if ($dto->hasPassword()) {
+            $requiresCurrentPassword = ($options['current_password_mode'] ?? 'require_when_mapped') === 'require_when_mapped'
+                && !empty($options['current_password_mapped']);
+            if ($requiresCurrentPassword && !$this->swpmService->verifyMemberPassword($memberId, (string) ($dto->currentPassword ?? ''))) {
+                return [
+                    'success' => false,
+                    'error' => __('Current password is incorrect', 'wpforms-swpm-bridge'),
+                ];
+            }
+        }
+
         $result = $this->swpmService->updateMember($memberId, $dto);
         
         if ($result['success']) {
@@ -187,8 +206,14 @@ class ActionRouter {
 
         $memberId = (int) $member['member_id'];
 
-        // Verify current password
-        if (!$this->swpmService->verifyMemberPassword($memberId, (string) ($dto->currentPassword ?? ''))) {
+        if (!$dto->hasPassword()) {
+            return ['success' => true, 'member_id' => $memberId];
+        }
+
+        $requiresCurrentPassword = ($options['current_password_mode'] ?? 'require_when_mapped') === 'require_when_mapped'
+            && !empty($options['current_password_mapped']);
+
+        if ($requiresCurrentPassword && !$this->swpmService->verifyMemberPassword($memberId, (string) ($dto->currentPassword ?? ''))) {
             return [
                 'success' => false,
                 'error' => __('Current password is incorrect', 'wpforms-swpm-bridge'),

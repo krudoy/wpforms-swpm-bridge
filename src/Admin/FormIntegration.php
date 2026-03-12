@@ -96,7 +96,7 @@ class FormIntegration {
                         </option>
                     </select>
                     <p class="description" style="margin-top: 8px; color: #666;">
-                        <?php esc_html_e('Change Password: Requires mapping both a "Current Password" field and a "Password" field. The current password is verified before allowing the change.', 'wpforms-swpm-bridge'); ?>
+                        <?php esc_html_e('Update Existing Member updates the currently matched or logged-in member profile. Username should be treated as an identifier only and is not updated during profile edits. Change Password requires mapping a "Password" field. If current-password enforcement is set to "Require current password when mapped", you must also map a "Current Password" field or the submission will fail with a configuration error. Blank new password means no password change unless your blank-password behavior setting is configured to show a validation error.', 'wpforms-swpm-bridge'); ?>
                     </p>
                 </div>
                 
@@ -196,6 +196,40 @@ class FormIntegration {
                                    <?php checked($config['options']['notify_admin_on_failure'] ?? false); ?>>
                             <?php esc_html_e('Notify admin on integration failure', 'wpforms-swpm-bridge'); ?>
                         </label>
+                    </div>
+
+                    <div class="swpm-option-group">
+                        <label>
+                            <strong><?php esc_html_e('Current Password Requirement:', 'wpforms-swpm-bridge'); ?></strong>
+                        </label>
+                        <select name="settings[swpm_integration][options][current_password_mode]">
+                            <option value="require_when_mapped" <?php selected($config['options']['current_password_mode'] ?? 'require_when_mapped', 'require_when_mapped'); ?>>
+                                <?php esc_html_e('Require current password when mapped', 'wpforms-swpm-bridge'); ?>
+                            </option>
+                            <option value="never_require" <?php selected($config['options']['current_password_mode'] ?? '', 'never_require'); ?>>
+                                <?php esc_html_e('Never require current password', 'wpforms-swpm-bridge'); ?>
+                            </option>
+                        </select>
+                        <p class="description" style="margin-top: 6px; color: #666;">
+                            <?php esc_html_e('Applies to Update Existing Member and Change Password when a new password is entered. If this is enabled but no field is mapped to "Current Password (for change)", the submission should be treated as a form configuration error.', 'wpforms-swpm-bridge'); ?>
+                        </p>
+                    </div>
+
+                    <div class="swpm-option-group">
+                        <label>
+                            <strong><?php esc_html_e('If Current Password Is Filled But New Password Is Blank:', 'wpforms-swpm-bridge'); ?></strong>
+                        </label>
+                        <select name="settings[swpm_integration][options][blank_new_password_behavior]">
+                            <option value="ignore" <?php selected($config['options']['blank_new_password_behavior'] ?? 'ignore', 'ignore'); ?>>
+                                <?php esc_html_e('Ignore password change', 'wpforms-swpm-bridge'); ?>
+                            </option>
+                            <option value="error" <?php selected($config['options']['blank_new_password_behavior'] ?? '', 'error'); ?>>
+                                <?php esc_html_e('Show validation error', 'wpforms-swpm-bridge'); ?>
+                            </option>
+                        </select>
+                        <p class="description" style="margin-top: 6px; color: #666;">
+                            <?php esc_html_e('This affects Update Existing Member and Change Password forms. Recommended default: ignore password change when only the current password field is filled.', 'wpforms-swpm-bridge'); ?>
+                        </p>
                     </div>
                 </div>
                 
@@ -494,6 +528,8 @@ class FormIntegration {
                 'password_mode' => 'require_field',
                 'auto_login' => false,
                 'send_welcome' => true,
+                'current_password_mode' => 'require_when_mapped',
+                'blank_new_password_behavior' => 'ignore',
                 'redirect_url' => '',
                 'enable_shortcodes' => false,
             ],

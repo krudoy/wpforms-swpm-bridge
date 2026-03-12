@@ -112,15 +112,30 @@ class MemberValidator {
      */
     private function validateUpdate(MemberDTO $dto, array $options): array {
         $errors = [];
+
+        $hasLoggedInMember = class_exists('SwpmMemberUtils')
+            && (int) \SwpmMemberUtils::get_logged_in_members_id() > 0;
         
         // Need at least one identifier
-        if (empty($dto->email) && empty($dto->username)) {
+        if (empty($dto->email) && empty($dto->username) && !$hasLoggedInMember) {
             $errors['identifier'] = __('Email or username is required to identify the member', 'wpforms-swpm-bridge');
         }
         
         // Validate email format if provided
         if (!empty($dto->email) && !is_email($dto->email)) {
             $errors['email'] = __('Invalid email address', 'wpforms-swpm-bridge');
+        }
+
+        $requiresCurrentPassword = ($options['current_password_mode'] ?? 'require_when_mapped') === 'require_when_mapped'
+            && !empty($options['current_password_mapped']);
+        $blankBehavior = $options['blank_new_password_behavior'] ?? 'ignore';
+
+        if ($dto->hasCurrentPassword() && !$dto->hasPassword() && $blankBehavior === 'error') {
+            $errors['password'] = __('New password is required when current password is provided', 'wpforms-swpm-bridge');
+        }
+
+        if ($dto->hasPassword() && $requiresCurrentPassword && !$dto->hasCurrentPassword()) {
+            $errors['current_password'] = __('Current password is required to change password', 'wpforms-swpm-bridge');
         }
         
         return $errors;
@@ -162,13 +177,19 @@ class MemberValidator {
             $errors['identifier'] = __('Email or username is required to identify the member', 'wpforms-swpm-bridge');
         }
 
-        // Current password required
-        if (!$dto->hasCurrentPassword()) {
+        $requiresCurrentPassword = ($options['current_password_mode'] ?? 'require_when_mapped') === 'require_when_mapped'
+            && !empty($options['current_password_mapped']);
+        $blankBehavior = $options['blank_new_password_behavior'] ?? 'ignore';
+
+        if ($dto->hasCurrentPassword() && !$dto->hasPassword() && $blankBehavior === 'error') {
+            $errors['password'] = __('New password is required when current password is provided', 'wpforms-swpm-bridge');
+        }
+
+        if ($requiresCurrentPassword && !$dto->hasCurrentPassword()) {
             $errors['current_password'] = __('Current password is required', 'wpforms-swpm-bridge');
         }
 
-        // New password required
-        if (!$dto->hasPassword()) {
+        if (!$dto->hasPassword() && !($dto->hasCurrentPassword() && $blankBehavior === 'ignore')) {
             $errors['password'] = __('New password is required', 'wpforms-swpm-bridge');
         }
 

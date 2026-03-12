@@ -32,3 +32,9 @@ Desktop.ini
 .wpforms
 .plugins
 plugins.zip
+
+# Local test artifacts
+/artifacts/
+*screenshot*.png
+tmp-*.png
+E2E_*.png

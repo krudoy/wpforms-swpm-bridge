@@ -181,6 +181,7 @@ class SwpmService {
             if (!empty($dto->email)) {
                 $update_data['email'] = sanitize_email($dto->email);
             }
+            // Username is intentionally not updated during profile edits.
             if (!empty($dto->firstName)) {
                 $update_data['first_name'] = sanitize_text_field($dto->firstName);
             }

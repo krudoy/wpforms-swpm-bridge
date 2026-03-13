@@ -152,13 +152,18 @@ final class Plugin {
      * Enqueue admin CSS and JS.
      */
     public function enqueueAdminAssets(string $hook): void {
+        $adminCssPath = SWPM_WPFORMS_PLUGIN_DIR . 'assets/css/admin.css';
+        $adminCssVersion = file_exists($adminCssPath) ? (string) filemtime($adminCssPath) : SWPM_WPFORMS_VERSION;
+        $adminJsPath = SWPM_WPFORMS_PLUGIN_DIR . 'assets/js/admin.js';
+        $adminJsVersion = file_exists($adminJsPath) ? (string) filemtime($adminJsPath) : SWPM_WPFORMS_VERSION;
+
         // Load on settings page
         if ($hook === 'settings_page_swpm-wpforms-settings') {
             wp_enqueue_style(
                 'swpm-wpforms-admin',
                 SWPM_WPFORMS_PLUGIN_URL . 'assets/css/admin.css',
                 [],
-                SWPM_WPFORMS_VERSION
+                $adminCssVersion
             );
         }
         
@@ -168,14 +173,14 @@ final class Plugin {
                 'swpm-wpforms-admin',
                 SWPM_WPFORMS_PLUGIN_URL . 'assets/css/admin.css',
                 [],
-                SWPM_WPFORMS_VERSION
+                $adminCssVersion
             );
             
             wp_enqueue_script(
                 'swpm-wpforms-admin',
                 SWPM_WPFORMS_PLUGIN_URL . 'assets/js/admin.js',
                 ['jquery'],
-                SWPM_WPFORMS_VERSION,
+                $adminJsVersion,
                 true
             );
             

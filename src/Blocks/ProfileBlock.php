@@ -44,12 +44,16 @@ class ProfileBlock {
     
     public function enqueueEditorAssets(): void {
         $formsData = $this->getWpFormsWithFields();
+        $profileBlockJsPath = SWPM_WPFORMS_PLUGIN_DIR . 'assets/js/blocks/profile-block.js';
+        $profileBlockJsVersion = file_exists($profileBlockJsPath) ? (string) filemtime($profileBlockJsPath) : SWPM_WPFORMS_VERSION;
+        $profileCssPath = SWPM_WPFORMS_PLUGIN_DIR . 'assets/css/profile.css';
+        $profileCssVersion = file_exists($profileCssPath) ? (string) filemtime($profileCssPath) : SWPM_WPFORMS_VERSION;
         
         wp_enqueue_script(
             'swpm-wpforms-profile-block',
             SWPM_WPFORMS_PLUGIN_URL . 'assets/js/blocks/profile-block.js',
             ['wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n', 'wp-server-side-render'],
-            SWPM_WPFORMS_VERSION,
+            $profileBlockJsVersion,
             true
         );
         
@@ -96,12 +100,14 @@ class ProfileBlock {
             'swpm-wpforms-profile-block-editor',
             SWPM_WPFORMS_PLUGIN_URL . 'assets/css/profile.css',
             $this->getWpformsFrontendStyleHandles(),
-            SWPM_WPFORMS_VERSION
+            $profileCssVersion
         );
     }
     
     public function enqueueFrontendStyles(): void {
         $dependencies = $this->getWpformsFrontendStyleHandles();
+        $profileCssPath = SWPM_WPFORMS_PLUGIN_DIR . 'assets/css/profile.css';
+        $profileCssVersion = file_exists($profileCssPath) ? (string) filemtime($profileCssPath) : SWPM_WPFORMS_VERSION;
 
         foreach ($dependencies as $handle) {
             wp_enqueue_style($handle);
@@ -111,7 +117,7 @@ class ProfileBlock {
             'swpm-wpforms-profile',
             SWPM_WPFORMS_PLUGIN_URL . 'assets/css/profile.css',
             $dependencies,
-            SWPM_WPFORMS_VERSION
+            $profileCssVersion
         );
     }
 

@@ -117,17 +117,35 @@ final class Plugin {
     }
 
     private function renderSwpmProfileLoginNotice(): string {
+        $this->enqueueProfileNoticeStyles();
+
         $redirectUrl = get_permalink() ?: home_url('/');
 
         return sprintf(
-            '<div class="swpm_profile_not_logged_in_msg swpm-wpforms-profile-login-notice" style="margin:16px 0;padding:18px 20px;border:1px solid #b3d4fc;border-radius:8px;background:#f0f6fc;color:#0f3d66;text-align:center;font-weight:600;">'
-            . '<p style="margin:0 0 12px;font-size:18px;line-height:1.4;">%s</p>'
-            . '<a href="%s" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2271b1;color:#ffffff;text-decoration:none;font-weight:700;">%s</a>'
+            '<div class="swpm_profile_not_logged_in_msg swpm-wpforms-profile-login-notice">'
+            . '<p class="swpm-wpforms-profile-login-notice__message">%s</p>'
+            . '<a href="%s" class="swpm-wpforms-profile-login-notice__button">%s</a>'
             . '</div>',
             esc_html__('Please login to see this page', 'wpforms-swpm-bridge'),
             esc_url(wp_login_url($redirectUrl)),
             esc_html__('Login', 'wpforms-swpm-bridge')
         );
+    }
+
+    private function enqueueProfileNoticeStyles(): void {
+        $profileCssPath = SWPM_WPFORMS_PLUGIN_DIR . 'assets/css/profile.css';
+        $profileCssVersion = file_exists($profileCssPath) ? (string) filemtime($profileCssPath) : SWPM_WPFORMS_VERSION;
+
+        wp_enqueue_style(
+            'swpm-wpforms-profile',
+            SWPM_WPFORMS_PLUGIN_URL . 'assets/css/profile.css',
+            [],
+            $profileCssVersion
+        );
+
+        if (did_action('wp_head') && wp_style_is('swpm-wpforms-profile', 'enqueued') && !wp_style_is('swpm-wpforms-profile', 'done')) {
+            wp_print_styles(['swpm-wpforms-profile']);
+        }
     }
     
     /**

@@ -16,6 +16,68 @@
     color: #333;
 }
 
+.swpm-wpforms-profile-login-notice {
+    margin: 16px 0;
+    padding: 18px 20px;
+    border: 1px solid #b3d4fc;
+    border-radius: 8px;
+    background: #f0f6fc;
+    color: #0f3d66;
+    text-align: center;
+    font-weight: 600;
+}
+
+.swpm-wpforms-profile-login-notice--shortcode {
+    margin: 0;
+    padding: 16px;
+    border-color: #dcdcde;
+    background: #fff;
+    color: inherit;
+    font-weight: 400;
+}
+
+.swpm-wpforms-profile-login-notice__message {
+    margin: 0 0 12px;
+    font-size: 18px;
+    line-height: 1.4;
+}
+
+.swpm-wpforms-profile-login-notice__message--shortcode {
+    font-size: 16px;
+    line-height: normal;
+}
+
+.swpm-wpforms-profile-login-notice__button {
+    display: inline-block;
+    padding: 10px 16px;
+    border-radius: 6px;
+    background: #2271b1;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.swpm-wpforms-profile-login-notice__button:hover,
+.swpm-wpforms-profile-login-notice__button:focus,
+.swpm-wpforms-profile-login-notice__button:active,
+.swpm-wpforms-profile-login-notice__button:visited {
+    color: #fff;
+    text-decoration: none;
+}
+
+.swpm-wpforms-profile-login-notice a.swpm-wpforms-profile-login-notice__button,
+.swpm-wpforms-profile-login-notice a.swpm-wpforms-profile-login-notice__button:hover,
+.swpm-wpforms-profile-login-notice a.swpm-wpforms-profile-login-notice__button:focus,
+.swpm-wpforms-profile-login-notice a.swpm-wpforms-profile-login-notice__button:active,
+.swpm-wpforms-profile-login-notice a.swpm-wpforms-profile-login-notice__button:visited {
+    color: #fff;
+    text-decoration: none;
+}
+
+.swpm-wpforms-profile-login-notice__button--shortcode {
+    font-weight: 600;
+}
+
 /* ==========================================================================
    WPForms Style Layout (matches WPForms form preview)
    ========================================================================== */

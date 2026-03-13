@@ -75,6 +75,8 @@ class SubmissionHandler {
     }
 
     public function maybeReplaceLoggedOutUpdateProfileFormData(array $formData, $form = null): array {
+        $this->enqueueProfileNoticeStyles();
+
         $config = FormIntegration::getConfig((int) ($formData['id'] ?? 0));
         if (empty($config['enabled']) || ($config['action_type'] ?? '') !== 'update_member') {
             return $formData;
@@ -92,9 +94,9 @@ class SubmissionHandler {
 
         $formData['fields'] = [];
         $formData['settings']['description'] = sprintf(
-            '<div class="swpm-profile-not-logged-in" style="padding:16px;border:1px solid #dcdcde;border-radius:8px;background:#fff;text-align:center;">'
-            . '<p style="margin:0 0 12px;font-size:16px;">%s</p>'
-            . '<a href="%s" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2271b1;color:#fff;text-decoration:none;font-weight:600;">%s</a>'
+            '<div class="swpm-profile-not-logged-in swpm-wpforms-profile-login-notice swpm-wpforms-profile-login-notice--shortcode">'
+            . '<p class="swpm-wpforms-profile-login-notice__message swpm-wpforms-profile-login-notice__message--shortcode">%s</p>'
+            . '<a href="%s" class="swpm-wpforms-profile-login-notice__button swpm-wpforms-profile-login-notice__button--shortcode">%s</a>'
             . '</div>',
             esc_html($message),
             esc_url($loginUrl),
@@ -102,6 +104,22 @@ class SubmissionHandler {
         );
 
         return $formData;
+    }
+
+    private function enqueueProfileNoticeStyles(): void {
+        $profileCssPath = SWPM_WPFORMS_PLUGIN_DIR . 'assets/css/profile.css';
+        $profileCssVersion = file_exists($profileCssPath) ? (string) filemtime($profileCssPath) : SWPM_WPFORMS_VERSION;
+
+        wp_enqueue_style(
+            'swpm-wpforms-profile',
+            SWPM_WPFORMS_PLUGIN_URL . 'assets/css/profile.css',
+            [],
+            $profileCssVersion
+        );
+
+        if (did_action('wp_head') && wp_style_is('swpm-wpforms-profile', 'enqueued') && !wp_style_is('swpm-wpforms-profile', 'done')) {
+            wp_print_styles(['swpm-wpforms-profile']);
+        }
     }
 
     /**

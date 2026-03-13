@@ -49,9 +49,59 @@ class SubmissionHandler {
 
         // Replace success confirmation with integration error when post-submit SWPM action fails
         add_filter('wpforms_frontend_confirmation_message', [$this, 'maybeReplaceConfirmationMessage'], 10, 3);
+        add_filter('wpforms_frontend_form_atts', [$this, 'maybeDisableLoggedOutUpdateProfileForm'], 10, 2);
+        add_filter('wpforms_frontend_form_data', [$this, 'maybeReplaceLoggedOutUpdateProfileFormData'], 10, 2);
 
         // Prepopulate logged-in member values into update forms
         add_filter('wpforms_field_properties', [$this, 'maybePrepopulateFieldProperties'], 10, 3);
+        add_action('wpforms_display_field_before', [$this, 'maybeRenderAvatarPreview'], 10, 2);
+        add_action('wpforms_display_field_after', [$this, 'maybeRenderCustomMetaSelectionScript'], 10, 2);
+    }
+
+    public function maybeDisableLoggedOutUpdateProfileForm(array $formAtts, array $formData): array {
+        $config = FormIntegration::getConfig((int) ($formData['id'] ?? 0));
+        if (empty($config['enabled']) || ($config['action_type'] ?? '') !== 'update_member') {
+            return $formAtts;
+        }
+
+        if (!class_exists('SwpmMemberUtils') || (int) \SwpmMemberUtils::get_logged_in_members_id() > 0) {
+            return $formAtts;
+        }
+
+        $formAtts['class'][] = 'swpm-update-profile-logged-out';
+        $formAtts['atts']['data-swpm-logged-out-message'] = esc_attr__('You must be logged in to update your profile.', 'wpforms-swpm-bridge');
+
+        return $formAtts;
+    }
+
+    public function maybeReplaceLoggedOutUpdateProfileFormData(array $formData, $form = null): array {
+        $config = FormIntegration::getConfig((int) ($formData['id'] ?? 0));
+        if (empty($config['enabled']) || ($config['action_type'] ?? '') !== 'update_member') {
+            return $formData;
+        }
+
+        if (!class_exists('SwpmMemberUtils') || (int) \SwpmMemberUtils::get_logged_in_members_id() > 0) {
+            return $formData;
+        }
+
+        $message = apply_filters(
+            'swpm_wpforms_profile_not_logged_in',
+            __('Please login to see this page', 'wpforms-swpm-bridge')
+        );
+        $loginUrl = wp_login_url(get_permalink() ?: home_url('/'));
+
+        $formData['fields'] = [];
+        $formData['settings']['description'] = sprintf(
+            '<div class="swpm-profile-not-logged-in" style="padding:16px;border:1px solid #dcdcde;border-radius:8px;background:#fff;text-align:center;">'
+            . '<p style="margin:0 0 12px;font-size:16px;">%s</p>'
+            . '<a href="%s" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2271b1;color:#fff;text-decoration:none;font-weight:600;">%s</a>'
+            . '</div>',
+            esc_html($message),
+            esc_url($loginUrl),
+            esc_html__('Login', 'wpforms-swpm-bridge')
+        );
+
+        return $formData;
     }
 
     /**
@@ -85,6 +135,8 @@ class SubmissionHandler {
             return $properties;
         }
 
+        $fieldType = (string) ($field['type'] ?? '');
+
         if (isset($properties['inputs']) && is_array($properties['inputs'])) {
             foreach ($properties['inputs'] as $inputKey => &$input) {
                 if (!is_array($input)) {
@@ -97,6 +149,10 @@ class SubmissionHandler {
                     continue;
                 }
 
+                if (in_array($fieldType, ['checkbox', 'radio', 'payment-checkbox', 'payment-multiple', 'gdpr-checkbox'], true)) {
+                    continue;
+                }
+
                 $input['default'] = $value;
                 $input['attr']['value'] = $value;
             }
@@ -106,11 +162,220 @@ class SubmissionHandler {
         $mappingKey = (string) ($field['id'] ?? '');
         $value = $this->resolvePrepopulatedValue($config['field_map'] ?? [], $mappingKey, $member);
         if ($value !== null) {
+            if (($field['type'] ?? '') === 'checkbox' && empty($field['choices'])) {
+                $isChecked = !empty($value) && !in_array(strtolower(trim($value)), ['0', 'false', 'no'], true);
+                if (isset($properties['inputs']['primary'])) {
+                    $properties['inputs']['primary']['default'] = $isChecked ? '1' : '';
+                    $properties['inputs']['primary']['selected'] = $isChecked;
+                    if ($isChecked) {
+                        $properties['inputs']['primary']['attr']['checked'] = 'checked';
+                    } else {
+                        unset($properties['inputs']['primary']['attr']['checked']);
+                    }
+                }
+
+                return $properties;
+            }
+
+            if (($field['type'] ?? '') === 'checkbox' || ($field['type'] ?? '') === 'radio' || ($field['type'] ?? '') === 'payment-checkbox' || ($field['type'] ?? '') === 'payment-multiple' || ($field['type'] ?? '') === 'gdpr-checkbox') {
+                $selectedValues = $this->parseSelectedValues($value);
+                if (!empty($field['choices']) && is_array($field['choices'])) {
+                    foreach ($field['choices'] as $choiceKey => $choice) {
+                        $choiceLabel = is_array($choice) ? (string) ($choice['label'] ?? '') : (string) $choice;
+                        $choiceValue = is_array($choice) ? (string) ($choice['value'] ?? $choiceLabel) : (string) $choice;
+                        $isSelected = in_array($choiceLabel, $selectedValues, true) || in_array($choiceValue, $selectedValues, true);
+
+                        if (isset($properties['inputs'][$choiceKey])) {
+                            $properties['inputs'][$choiceKey]['default'] = $isSelected ? '1' : '';
+                            $properties['inputs'][$choiceKey]['selected'] = $isSelected;
+                            if ($isSelected) {
+                                $properties['inputs'][$choiceKey]['attr']['checked'] = 'checked';
+                            } else {
+                                unset($properties['inputs'][$choiceKey]['attr']['checked']);
+                            }
+                        }
+
+                        if (isset($field['choices'][$choiceKey])) {
+                            $field['choices'][$choiceKey]['default'] = $isSelected ? '1' : '';
+                        }
+                    }
+                }
+
+                return $properties;
+            }
+
+            if (($field['type'] ?? '') === 'file-upload') {
+                return $properties;
+            }
+
             $properties['inputs']['primary']['default'] = $value;
             $properties['inputs']['primary']['attr']['value'] = $value;
         }
 
         return $properties;
+    }
+
+    public function maybeRenderAvatarPreview(array $field, array $formData): void {
+        $formId = (int) ($formData['id'] ?? 0);
+        if ($formId <= 0 || ($field['type'] ?? '') !== 'file-upload') {
+            return;
+        }
+
+        $config = FormIntegration::getConfig($formId);
+        $config['field_map'] = FormIntegration::getFieldMapWithCustomKeys($config);
+
+        if (($config['action_type'] ?? '') !== 'update_member') {
+            return;
+        }
+
+        $mappingKey = (string) ($field['id'] ?? '');
+        if (($config['field_map'][$mappingKey] ?? null) !== 'wp_avatar') {
+            return;
+        }
+
+        if (!class_exists('SwpmMemberUtils')) {
+            return;
+        }
+
+        $memberId = (int) \SwpmMemberUtils::get_logged_in_members_id();
+        if ($memberId <= 0) {
+            return;
+        }
+
+        $member = $this->swpmService->getMemberById($memberId);
+        if (!$member) {
+            return;
+        }
+
+        $avatarUrl = $this->resolvePrepopulatedValue($config['field_map'], $mappingKey, $member);
+        if (empty($avatarUrl)) {
+            return;
+        }
+
+        printf(
+            '<div class="swpm-current-avatar-preview" style="margin-bottom:12px;"><p style="margin:0 0 8px;"><strong>%s</strong></p><img src="%s" alt="%s" style="max-width:160px;height:auto;border-radius:8px;display:block;"><p style="margin:8px 0 0;color:#666;">%s</p></div>',
+            esc_html__('Current profile picture', 'wpforms-swpm-bridge'),
+            esc_url($avatarUrl),
+            esc_attr__('Current profile picture', 'wpforms-swpm-bridge'),
+            esc_html__('Upload a new file below to replace it.', 'wpforms-swpm-bridge')
+        );
+    }
+
+    public function maybeRenderCustomMetaSelectionScript(array $field, array $formData): void {
+        $formId = (int) ($formData['id'] ?? 0);
+        if ($formId <= 0) {
+            return;
+        }
+
+        $config = FormIntegration::getConfig($formId);
+        $config['field_map'] = FormIntegration::getFieldMapWithCustomKeys($config);
+
+        if (($config['action_type'] ?? '') !== 'update_member' || !class_exists('SwpmMemberUtils')) {
+            return;
+        }
+
+        $memberId = (int) \SwpmMemberUtils::get_logged_in_members_id();
+        if ($memberId <= 0) {
+            return;
+        }
+
+        $mappingKey = (string) ($field['id'] ?? '');
+        $swpmField = $config['field_map'][$mappingKey] ?? null;
+        if (!$swpmField) {
+            return;
+        }
+
+        $member = $this->swpmService->getMemberById($memberId);
+        if (!$member) {
+            return;
+        }
+
+        $value = $this->resolvePrepopulatedValue($config['field_map'], $mappingKey, $member);
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $fieldType = (string) ($field['type'] ?? '');
+        if (!in_array($fieldType, ['checkbox', 'radio'], true) && !str_contains(strtolower((string) ($field['label'] ?? '')), 'gdpr')) {
+            return;
+        }
+
+        $selectedValues = $this->parseSelectedValues($value);
+        if (empty($selectedValues)) {
+            return;
+        }
+
+        $choices = [];
+        foreach ((array) ($field['choices'] ?? []) as $index => $choice) {
+            $choices[] = [
+                'index' => (string) $index,
+                'label' => is_array($choice) ? (string) ($choice['label'] ?? '') : (string) $choice,
+                'value' => is_array($choice) ? (string) ($choice['value'] ?? ($choice['label'] ?? '')) : (string) $choice,
+            ];
+        }
+
+        $payload = wp_json_encode([
+            'formId' => $formId,
+            'fieldId' => $mappingKey,
+            'fieldType' => $fieldType,
+            'selectedValues' => $selectedValues,
+            'choices' => $choices,
+        ]);
+
+        printf(
+            '<script>(function(cfg){if(!cfg){return;}var form=document.getElementById("wpforms-form-"+cfg.formId);if(!form){return;}var selector="#wpforms-"+cfg.formId+"-field_"+cfg.fieldId+"-container input";var inputs=form.querySelectorAll(selector);if(!inputs.length){selector="#wpforms-"+cfg.formId+"-field_"+cfg.fieldId+" input";inputs=form.querySelectorAll(selector);}if(!inputs.length){return;}var selected=new Set(cfg.selectedValues.map(function(v){return String(v).trim();}));inputs.forEach(function(input,index){var choice=cfg.choices[index]||{};var candidates=[choice.label,choice.value].filter(Boolean).map(function(v){return String(v).trim();});var match=candidates.some(function(v){return selected.has(v);});input.checked=match;});if(inputs.length===1&&cfg.selectedValues.length===1){var raw=String(cfg.selectedValues[0]).toLowerCase();inputs[0].checked=["0","false","no"].indexOf(raw)===-1;}})(%s);</script>',
+            $payload ?: '{}'
+        );
+    }
+
+    private function parseSelectedValues(string $value): array {
+        return array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $value))));
+    }
+
+    /**
+     * Replace update-profile form output for logged-out users with a clear message.
+     */
+    public function maybeReplaceConfirmationMessage(string $message, array $formData, array $fields = []): string {
+        $config = FormIntegration::getConfig((int) $formData['id']);
+        if (empty($config['enabled'])) {
+            return $message;
+        }
+
+        if (($config['action_type'] ?? '') === 'update_member' && class_exists('SwpmMemberUtils')) {
+            $loggedInMemberId = (int) \SwpmMemberUtils::get_logged_in_members_id();
+            if ($loggedInMemberId <= 0 && $this->getIntegrationResult((int) $formData['id']) === null) {
+                return sprintf(
+                    '<div class="wpforms-error-container">%s</div>',
+                    esc_html__('You must be logged in to update your profile.', 'wpforms-swpm-bridge')
+                );
+            }
+        }
+
+        $result = $this->getIntegrationResult((int) $formData['id']);
+        if ($result === false) {
+            $error = $this->getStoredError((int) $formData['id']);
+            if ($error === '') {
+                $error = __('Membership action failed', 'wpforms-swpm-bridge');
+            }
+
+            return sprintf('<div class="wpforms-error-container">%s</div>', esc_html($error));
+        }
+
+        if ($result === true) {
+            $success = match ($config['action_type'] ?? '') {
+                'register_member' => __('Registration completed successfully.', 'wpforms-swpm-bridge'),
+                'update_member' => __('Profile updated successfully.', 'wpforms-swpm-bridge'),
+                'change_password' => __('Password changed successfully.', 'wpforms-swpm-bridge'),
+                'change_level' => __('Membership updated successfully.', 'wpforms-swpm-bridge'),
+                default => $message,
+            };
+
+            return $success === $message
+                ? $message
+                : sprintf('<div class="wpforms-confirmation-container-full">%s</div>', esc_html($success));
+        }
+
+        return $message;
     }
     
     /**
@@ -139,7 +404,7 @@ class SubmissionHandler {
         
         try {
             // Build MemberDTO from form fields
-            $dto = $this->buildMemberDTO($fields, $config, $settings);
+            $dto = $this->buildMemberDTO($fields, $config, $settings, (int) $formData['id']);
             
             /**
              * Filter the member DTO before action.
@@ -241,7 +506,7 @@ class SubmissionHandler {
         
         // Build DTO for validation
         $settings = SettingsPage::getSettings();
-        $dto = $this->buildMemberDTOFromPost($fields, $config, $settings);
+        $dto = $this->buildMemberDTOFromPost($fields, $config, $settings, (int) $formData['id']);
         
         // Validate
         $validationResult = $this->validator->validate($dto, $config['action_type'], $config['options'] ?? []);
@@ -279,7 +544,7 @@ class SubmissionHandler {
     /**
      * Build MemberDTO from processed form fields.
      */
-    private function buildMemberDTO(array $fields, array $config, array $settings): MemberDTO {
+    private function buildMemberDTO(array $fields, array $config, array $settings, int $formId): MemberDTO {
         $fieldMap = $config['field_map'] ?? [];
         $data = [];
         
@@ -321,6 +586,9 @@ class SubmissionHandler {
             
             // Regular field
             if (!isset($fields[$mappingKey])) {
+                if (($config['action_type'] ?? '') === 'update_member' && $this->shouldClearMissingChoiceField($formId, (string) $mappingKey)) {
+                    $data[$swpmField] = '';
+                }
                 continue;
             }
             
@@ -388,7 +656,7 @@ class SubmissionHandler {
     /**
      * Build MemberDTO from POST data (for validation).
      */
-    private function buildMemberDTOFromPost(array $postFields, array $config, array $settings): MemberDTO {
+    private function buildMemberDTOFromPost(array $postFields, array $config, array $settings, int $formId): MemberDTO {
         $fieldMap = $config['field_map'] ?? [];
         $data = [];
         
@@ -430,6 +698,9 @@ class SubmissionHandler {
             
             // Regular field
             if (!isset($postFields[$mappingKey])) {
+                if (($config['action_type'] ?? '') === 'update_member' && $this->shouldClearMissingChoiceField($formId, (string) $mappingKey)) {
+                    $data[$swpmField] = '';
+                }
                 continue;
             }
             
@@ -489,14 +760,9 @@ class SubmissionHandler {
         }
 
         if (str_starts_with($swpmField, 'custom_') || str_starts_with($swpmField, 'swpm_')) {
-            global $wpdb;
             $metaKey = str_starts_with($swpmField, 'custom_') ? substr($swpmField, 7) : substr($swpmField, 5);
 
-            return $wpdb->get_var($wpdb->prepare(
-                "SELECT meta_value FROM {$wpdb->prefix}swpm_members_meta WHERE member_id = %d AND meta_key = %s LIMIT 1",
-                (int) ($member['member_id'] ?? 0),
-                $metaKey
-            )) ?: null;
+            return $this->swpmService->getCustomFieldValue($member, $metaKey, true);
         }
 
         if (str_starts_with($swpmField, 'wp_')) {
@@ -516,6 +782,7 @@ class SubmissionHandler {
                 'wp_nickname' => (string) $wpUser->nickname,
                 'wp_description' => (string) $wpUser->description,
                 'wp_user_url' => (string) $wpUser->user_url,
+                'wp_avatar' => (string) get_avatar_url($wpUser->ID),
                 default => null,
             };
         }
@@ -536,7 +803,8 @@ class SubmissionHandler {
 
         if (($field['type'] ?? '') === 'address') {
             return match ($inputKey) {
-                'address1', 'address2' => $fieldId . '_street',
+                'address1' => $fieldId . '_street',
+                'address2' => $fieldId . '_street_2',
                 'city' => $fieldId . '_city',
                 'state' => $fieldId . '_state',
                 'postal' => $fieldId . '_postal',
@@ -546,6 +814,41 @@ class SubmissionHandler {
         }
 
         return $fieldId;
+    }
+
+    private function shouldClearMissingChoiceField(int $formId, string $mappingKey): bool {
+        $field = $this->getFormFieldDefinition($formId, $mappingKey);
+        if ($field === null) {
+            return false;
+        }
+
+        $fieldType = (string) ($field['type'] ?? '');
+        if (in_array($fieldType, ['checkbox', 'payment-checkbox', 'gdpr-checkbox'], true)) {
+            return true;
+        }
+
+        return str_contains(strtolower((string) ($field['label'] ?? '')), 'gdpr');
+    }
+
+    private function getFormFieldDefinition(int $formId, string $mappingKey): ?array {
+        if ($formId <= 0 || !function_exists('wpforms')) {
+            return null;
+        }
+
+        $fieldId = preg_replace('/_.+$/', '', $mappingKey);
+        if ($fieldId === null || $fieldId === '') {
+            return null;
+        }
+
+        $form = wpforms()->form->get($formId);
+        if (!$form) {
+            return null;
+        }
+
+        $formData = wpforms_decode($form->post_content);
+        $formFields = $formData['fields'] ?? [];
+
+        return isset($formFields[$fieldId]) && is_array($formFields[$fieldId]) ? $formFields[$fieldId] : null;
     }
 
     /**
@@ -700,28 +1003,6 @@ class SubmissionHandler {
         return $send;
     }
 
-    /**
-     * Replace WPForms success confirmation with integration failure message when needed.
-     */
-    public function maybeReplaceConfirmationMessage(string $message, array $formData, array $fields = []): string {
-        $config = FormIntegration::getConfig((int) $formData['id']);
-        if (empty($config['enabled'])) {
-            return $message;
-        }
-
-        $result = $this->getIntegrationResult((int) $formData['id']);
-        if ($result !== false) {
-            return $message;
-        }
-
-        $error = $this->getStoredError((int) $formData['id']);
-        if ($error === '') {
-            $error = __('Membership action failed', 'wpforms-swpm-bridge');
-        }
-
-        return sprintf('<div class="wpforms-error-container">%s</div>', esc_html($error));
-    }
-    
     /**
      * Send admin notification on integration failure.
      */

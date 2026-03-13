@@ -802,13 +802,10 @@ class ProfileShortcode {
     }
     
     private function getMemberMeta(array $member, string $key): ?string {
-        global $wpdb;
         $memberId = $member['member_id'] ?? 0;
         if (!$memberId) return null;
-        return $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->prefix}swpm_members_meta WHERE member_id = %d AND meta_key = %s LIMIT 1",
-            $memberId, $key
-        ));
+
+        return $this->swpmService->getCustomFieldValue($member, $key);
     }
     
     private function formatValue(?string $value, string $field, string $format = ''): ?string {
@@ -825,8 +822,20 @@ class ProfileShortcode {
     }
     
     private function renderNotLoggedIn(): string {
-        $msg = apply_filters('swpm_wpforms_profile_not_logged_in', 
-            __('Please log in to view your profile.', 'wpforms-swpm-bridge'));
-        return sprintf('<div class="swpm-profile-not-logged-in">%s</div>', esc_html($msg));
+        $msg = apply_filters(
+            'swpm_wpforms_profile_not_logged_in',
+            __('Please login to see this page', 'wpforms-swpm-bridge')
+        );
+        $loginUrl = wp_login_url(get_permalink() ?: home_url('/'));
+
+        return sprintf(
+            '<div class="swpm-profile-not-logged-in" style="padding:16px;border:1px solid #dcdcde;border-radius:8px;background:#fff;text-align:center;">'
+            . '<p style="margin:0 0 12px;font-size:16px;">%s</p>'
+            . '<a href="%s" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#2271b1;color:#fff;text-decoration:none;font-weight:600;">%s</a>'
+            . '</div>',
+            esc_html($msg),
+            esc_url($loginUrl),
+            esc_html__('Login', 'wpforms-swpm-bridge')
+        );
     }
 }

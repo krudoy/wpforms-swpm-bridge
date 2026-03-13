@@ -139,7 +139,7 @@ class SwpmService {
             
             // Save custom meta
             if (!empty($dto->customMeta)) {
-                $this->saveCustomMeta($member_id, $dto->customMeta);
+                $this->saveCustomMeta($member_id, $dto->customMeta, true);
             }
             
             $this->logger->info('Member registered', [
@@ -237,7 +237,7 @@ class SwpmService {
             
             // Update custom meta
             if (!empty($dto->customMeta)) {
-                $this->saveCustomMeta($memberId, $dto->customMeta);
+                $this->saveCustomMeta($memberId, $dto->customMeta, true);
             }
             
             // Update WP user fields if member has WP user
@@ -783,29 +783,58 @@ class SwpmService {
     /**
      * Save custom meta fields for a member.
      */
-    private function saveCustomMeta(int $memberId, array $meta): void {
+    private function saveCustomMeta(int $memberId, array $meta, bool $useWpUserMeta = false): void {
         if (empty($meta)) {
             return;
         }
+
+        global $wpdb;
+        $metaTable = $wpdb->prefix . 'swpm_members_meta';
+        $wpUserId = $useWpUserMeta ? $this->resolveMemberWpUserId($this->getMemberById($memberId) ?: []) : 0;
         
         foreach ($meta as $key => $value) {
-            if (class_exists('SwpmMemberUtils') && method_exists('SwpmMemberUtils', 'update_member_field')) {
-                \SwpmMemberUtils::update_member_field($memberId, $key, $value);
+            if ($wpUserId > 0) {
+                update_user_meta($wpUserId, $key, $value);
+            }
+
+            $storageTarget = $this->resolveCustomFieldStorageTarget($key);
+
+            if ($storageTarget === 'column') {
+                if (class_exists('SwpmMemberUtils') && method_exists('SwpmMemberUtils', 'update_member_field')) {
+                    \SwpmMemberUtils::update_member_field($memberId, $key, $value);
+                } else {
+                    $wpdb->update($wpdb->prefix . 'swpm_members_tbl', [$key => $value], ['member_id' => $memberId]);
+                }
                 continue;
             }
 
-            global $wpdb;
-            $table = $wpdb->prefix . 'swpm_members_tbl';
-
-            $columnExists = (bool) $wpdb->get_var(
-                $wpdb->prepare(
-                    "SHOW COLUMNS FROM {$table} LIKE %s",
+            if ($storageTarget === 'meta') {
+                $existingMetaId = $wpdb->get_var($wpdb->prepare(
+                    "SELECT meta_id FROM {$metaTable} WHERE member_id = %d AND meta_key = %s LIMIT 1",
+                    $memberId,
                     $key
-                )
-            );
+                ));
 
-            if ($columnExists) {
-                $wpdb->update($table, [$key => $value], ['member_id' => $memberId]);
+                if ($existingMetaId) {
+                    $wpdb->update(
+                        $metaTable,
+                        ['meta_value' => $value],
+                        ['meta_id' => (int) $existingMetaId],
+                        ['%s'],
+                        ['%d']
+                    );
+                } else {
+                    $wpdb->insert(
+                        $metaTable,
+                        [
+                            'member_id' => $memberId,
+                            'meta_key' => $key,
+                            'meta_value' => $value,
+                        ],
+                        ['%d', '%s', '%s']
+                    );
+                }
+
                 continue;
             }
 
@@ -814,5 +843,67 @@ class SwpmService {
                 'field' => $key,
             ]);
         }
+    }
+
+    public function getCustomFieldValue(array $member, string $metaKey, bool $preferWpUserMeta = false): ?string {
+        if ($preferWpUserMeta) {
+            $wpUserId = $this->resolveMemberWpUserId($member);
+            if ($wpUserId > 0) {
+                $value = get_user_meta($wpUserId, $metaKey, true);
+                if ($value !== '') {
+                    return is_array($value) ? implode(', ', array_map('strval', $value)) : (string) $value;
+                }
+            }
+        }
+
+        if (array_key_exists($metaKey, $member)) {
+            return $member[$metaKey] !== null ? (string) $member[$metaKey] : null;
+        }
+
+        global $wpdb;
+
+        $value = $wpdb->get_var($wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->prefix}swpm_members_meta WHERE member_id = %d AND meta_key = %s LIMIT 1",
+            (int) ($member['member_id'] ?? 0),
+            $metaKey
+        ));
+
+        return $value !== null ? (string) $value : null;
+    }
+
+    private function resolveCustomFieldStorageTarget(string $key): ?string {
+        global $wpdb;
+
+        $memberTable = $wpdb->prefix . 'swpm_members_tbl';
+        $metaTable = $wpdb->prefix . 'swpm_members_meta';
+
+        $columnExists = (bool) $wpdb->get_var(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM {$memberTable} LIKE %s",
+                $key
+            )
+        );
+
+        if ($columnExists) {
+            return 'column';
+        }
+
+        $metaTableExists = (bool) $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $metaTable));
+
+        return $metaTableExists ? 'meta' : null;
+    }
+
+    private function resolveMemberWpUserId(array $member): int {
+        $wpUser = null;
+
+        if (!empty($member['user_name'])) {
+            $wpUser = get_user_by('login', (string) $member['user_name']);
+        }
+
+        if (!$wpUser instanceof \WP_User && !empty($member['email'])) {
+            $wpUser = get_user_by('email', (string) $member['email']);
+        }
+
+        return $wpUser instanceof \WP_User ? (int) $wpUser->ID : 0;
     }
 }

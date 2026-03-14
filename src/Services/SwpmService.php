@@ -96,6 +96,9 @@ class SwpmService {
             if ($dto->gender !== null) {
                 $member_data['gender'] = sanitize_text_field($dto->gender);
             }
+            if ($dto->wpUserUrl !== null) {
+                $member_data['home_page'] = esc_url_raw($dto->wpUserUrl);
+            }
             
             // Calculate subscription end date based on level
             $level = $this->getMembershipLevelRow((int) $dto->membershipLevel);
@@ -216,6 +219,9 @@ class SwpmService {
             }
             if ($dto->gender !== null) {
                 $update_data['gender'] = sanitize_text_field($dto->gender);
+            }
+            if ($dto->wpUserUrl !== null) {
+                $update_data['home_page'] = esc_url_raw($dto->wpUserUrl);
             }
             
             if (empty($update_data)) {
@@ -536,12 +542,13 @@ class SwpmService {
         if ($dto->wpUserUrl !== null) {
             $wpUserData['user_url'] = $dto->wpUserUrl;
         }
-        if ($dto->hasPassword()) {
-            $wpUserData['user_pass'] = $dto->password;
-        }
         
         if (count($wpUserData) > 1) {
             wp_update_user($wpUserData);
+        }
+
+        if ($dto->hasPassword()) {
+            wp_set_password($dto->password, $wpUserId);
         }
         
         // Set profile picture if provided

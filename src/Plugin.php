@@ -84,7 +84,7 @@ final class Plugin {
      */
     private function initHandlers(): void {
         SwpmService::instance()->initAvatarHooks();
-        add_filter('do_shortcode_tag', [$this, 'maybeReplaceSwpmProfileFormLoggedOutOutput'], 10, 4);
+        add_filter('do_shortcode_tag', [$this, 'maybeReplaceLoggedOutShortcodeOutput'], 10, 4);
 
         $submissionHandler = new SubmissionHandler();
         $submissionHandler->init();
@@ -101,22 +101,40 @@ final class Plugin {
         $profileBlock->init();
     }
 
-    public function maybeReplaceSwpmProfileFormLoggedOutOutput(string $output, string $tag, array $attr, array $matches): string {
-        unset($attr, $matches);
+    public function maybeReplaceLoggedOutShortcodeOutput(string $output, string $tag, array $attr, array $matches): string {
+        unset($matches);
 
-        if ($tag !== 'swpm_profile_form') {
+        if ($tag === 'swpm_profile_form') {
+            $needle = '<div class="swpm_profile_not_logged_in_msg">You are not logged in.</div>';
+            if (strpos($output, $needle) === false) {
+                return $output;
+            }
+
+            return str_replace($needle, $this->renderLoginNotice(__('Please login to see this page', 'wpforms-swpm-bridge')), $output);
+        }
+
+        if ($tag !== 'wpforms') {
             return $output;
         }
 
-        $needle = '<div class="swpm_profile_not_logged_in_msg">You are not logged in.</div>';
-        if (strpos($output, $needle) === false) {
+        $formId = isset($attr['id']) ? (int) $attr['id'] : 0;
+        if ($formId <= 0) {
             return $output;
         }
 
-        return str_replace($needle, $this->renderSwpmProfileLoginNotice(), $output);
+        $config = FormIntegration::getConfig($formId);
+        if (empty($config['enabled']) || ($config['action_type'] ?? '') !== 'change_password') {
+            return $output;
+        }
+
+        if (!class_exists('SwpmMemberUtils') || (int) \SwpmMemberUtils::get_logged_in_members_id() > 0) {
+            return $output;
+        }
+
+        return $this->renderLoginNotice(__('Please login to change your password', 'wpforms-swpm-bridge'));
     }
 
-    private function renderSwpmProfileLoginNotice(): string {
+    private function renderLoginNotice(string $message): string {
         $this->enqueueProfileNoticeStyles();
 
         $redirectUrl = get_permalink() ?: home_url('/');
@@ -126,7 +144,7 @@ final class Plugin {
             . '<p class="swpm-wpforms-profile-login-notice__message">%s</p>'
             . '<a href="%s" class="swpm-wpforms-profile-login-notice__button">%s</a>'
             . '</div>',
-            esc_html__('Please login to see this page', 'wpforms-swpm-bridge'),
+            esc_html($message),
             esc_url(wp_login_url($redirectUrl)),
             esc_html__('Login', 'wpforms-swpm-bridge')
         );

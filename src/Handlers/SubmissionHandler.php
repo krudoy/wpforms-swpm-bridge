@@ -60,7 +60,9 @@ class SubmissionHandler {
 
     public function maybeDisableLoggedOutUpdateProfileForm(array $formAtts, array $formData): array {
         $config = FormIntegration::getConfig((int) ($formData['id'] ?? 0));
-        if (empty($config['enabled']) || ($config['action_type'] ?? '') !== 'update_member') {
+        $actionType = (string) ($config['action_type'] ?? '');
+
+        if (empty($config['enabled']) || !in_array($actionType, ['update_member', 'change_password'], true)) {
             return $formAtts;
         }
 
@@ -69,7 +71,11 @@ class SubmissionHandler {
         }
 
         $formAtts['class'][] = 'swpm-update-profile-logged-out';
-        $formAtts['atts']['data-swpm-logged-out-message'] = esc_attr__('You must be logged in to update your profile.', 'wpforms-swpm-bridge');
+        $formAtts['atts']['data-swpm-logged-out-message'] = esc_attr(
+            $actionType === 'change_password'
+                ? __('You must be logged in to change your password.', 'wpforms-swpm-bridge')
+                : __('You must be logged in to update your profile.', 'wpforms-swpm-bridge')
+        );
 
         return $formAtts;
     }
@@ -78,7 +84,9 @@ class SubmissionHandler {
         $this->enqueueProfileNoticeStyles();
 
         $config = FormIntegration::getConfig((int) ($formData['id'] ?? 0));
-        if (empty($config['enabled']) || ($config['action_type'] ?? '') !== 'update_member') {
+        $actionType = (string) ($config['action_type'] ?? '');
+
+        if (empty($config['enabled']) || !in_array($actionType, ['update_member', 'change_password'], true)) {
             return $formData;
         }
 
@@ -86,10 +94,15 @@ class SubmissionHandler {
             return $formData;
         }
 
-        $message = apply_filters(
-            'swpm_wpforms_profile_not_logged_in',
-            __('Please login to see this page', 'wpforms-swpm-bridge')
-        );
+        $message = $actionType === 'change_password'
+            ? apply_filters(
+                'swpm_wpforms_change_password_not_logged_in',
+                __('Please login to change your password', 'wpforms-swpm-bridge')
+            )
+            : apply_filters(
+                'swpm_wpforms_profile_not_logged_in',
+                __('Please login to see this page', 'wpforms-swpm-bridge')
+            );
         $loginUrl = wp_login_url(get_permalink() ?: home_url('/'));
 
         $formData['fields'] = [];

@@ -446,14 +446,19 @@ class SubmissionHandler {
              */
             $dto = apply_filters('swpm_wpforms_member_dto', $dto, $fields, $config);
             
-            /**
-             * Action before SWPM action is executed.
-             * 
-             * @param string $actionType The action being performed.
-             * @param MemberDTO $dto The member data.
-             * @param array $config Integration config.
-             */
-            do_action('swpm_wpforms_before_action', $config['action_type'], $dto, $config);
+            $delayBeforeActionHook = in_array($config['action_type'] ?? '', ['update_member', 'change_password'], true)
+                && $dto->hasPassword();
+
+            if (!$delayBeforeActionHook) {
+                /**
+                 * Action before SWPM action is executed.
+                 *
+                 * @param string $actionType The action being performed.
+                 * @param MemberDTO $dto The member data.
+                 * @param array $config Integration config.
+                 */
+                do_action('swpm_wpforms_before_action', $config['action_type'], $dto, $config);
+            }
             
             // Route to appropriate action
             $result = $this->actionRouter->route($dto, $config);
@@ -476,6 +481,20 @@ class SubmissionHandler {
                 // Store error for display
                 $this->storeError((int) $formData['id'], $result['error'] ?? __('Membership action failed', 'wpforms-swpm-bridge'));
                 return;
+            }
+
+            if ($delayBeforeActionHook) {
+                /**
+                 * Action before SWPM action is executed.
+                 *
+                 * For password-bearing update/change-password flows this runs only after
+                 * router-level verification succeeds, preventing premature side effects.
+                 *
+                 * @param string $actionType The action being performed.
+                 * @param MemberDTO $dto The member data.
+                 * @param array $config Integration config.
+                 */
+                do_action('swpm_wpforms_before_action', $config['action_type'], $dto, $config);
             }
             
             // Store success state to allow standard notifications

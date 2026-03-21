@@ -506,16 +506,7 @@ class SwpmService {
             return;
         }
 
-        $wpUser = null;
-
-        if (!empty($member['user_name'])) {
-            $wpUser = get_user_by('login', (string) $member['user_name']);
-        }
-
-        if (!$wpUser instanceof \WP_User && !empty($member['email'])) {
-            $wpUser = get_user_by('email', (string) $member['email']);
-        }
-
+        $wpUser = $this->resolveMemberWpUser($member);
         if (!$wpUser instanceof \WP_User) {
             return;
         }
@@ -901,16 +892,62 @@ class SwpmService {
     }
 
     private function resolveMemberWpUserId(array $member): int {
-        $wpUser = null;
-
-        if (!empty($member['user_name'])) {
-            $wpUser = get_user_by('login', (string) $member['user_name']);
-        }
-
-        if (!$wpUser instanceof \WP_User && !empty($member['email'])) {
-            $wpUser = get_user_by('email', (string) $member['email']);
-        }
+        $wpUser = $this->resolveMemberWpUser($member);
 
         return $wpUser instanceof \WP_User ? (int) $wpUser->ID : 0;
+    }
+
+    private function resolveMemberWpUser(array $member): ?\WP_User {
+        $username = isset($member['user_name']) ? trim((string) $member['user_name']) : '';
+        $email = isset($member['email']) ? trim((string) $member['email']) : '';
+
+        $loginUser = $username !== '' ? get_user_by('login', $username) : false;
+        $emailUser = $email !== '' ? get_user_by('email', $email) : false;
+
+        if ($loginUser instanceof \WP_User && $emailUser instanceof \WP_User) {
+            if ((int) $loginUser->ID === (int) $emailUser->ID) {
+                return $loginUser;
+            }
+
+            $this->logger->warning('Ambiguous WP user resolution for SWPM member', [
+                'member_id' => (int) ($member['member_id'] ?? 0),
+                'user_name' => $username,
+                'email' => $email,
+                'login_user_id' => (int) $loginUser->ID,
+                'email_user_id' => (int) $emailUser->ID,
+            ]);
+
+            return null;
+        }
+
+        if ($loginUser instanceof \WP_User) {
+            if ($email === '' || strcasecmp((string) $loginUser->user_email, $email) === 0) {
+                return $loginUser;
+            }
+
+            $this->logger->warning('WP login match failed email verification for SWPM member', [
+                'member_id' => (int) ($member['member_id'] ?? 0),
+                'user_name' => $username,
+                'email' => $email,
+                'login_user_id' => (int) $loginUser->ID,
+            ]);
+
+            return null;
+        }
+
+        if ($emailUser instanceof \WP_User) {
+            if ($username === '' || strcasecmp((string) $emailUser->user_login, $username) === 0) {
+                return $emailUser;
+            }
+
+            $this->logger->warning('WP email match failed username verification for SWPM member', [
+                'member_id' => (int) ($member['member_id'] ?? 0),
+                'user_name' => $username,
+                'email' => $email,
+                'email_user_id' => (int) $emailUser->ID,
+            ]);
+        }
+
+        return null;
     }
 }

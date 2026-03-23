@@ -242,9 +242,62 @@ class ProfileShortcode {
         foreach ($this->formFields as $fieldId => $formField) {
             $output .= $this->renderFormField($formField, $context);
         }
+
+        $output .= $this->renderDynamicMappedFields($context);
         
         $output = $this->wrapFieldsOutput($output, $layout);
         return apply_filters('swpm_wpforms_profile_output', $output, $member, $formId);
+    }
+
+    private function renderDynamicMappedFields(array $context): string {
+        $output = '';
+
+        foreach ($this->fieldMap as $fieldId => $swpmField) {
+            if (!is_string($swpmField) || !preg_match('/^(custom_|swpm_)/', $swpmField)) {
+                continue;
+            }
+
+            if (isset($this->formFields[$fieldId]) || in_array($swpmField, self::EXCLUDED_FIELDS, true)) {
+                continue;
+            }
+
+            if (!$this->shouldShowField((string) $fieldId, $context['includeFields'], $context['excludeFields'])) {
+                continue;
+            }
+
+            $rawValue = $this->formatValue($this->getMemberFieldValue($context['member'], $swpmField), $swpmField);
+            $isEmpty = ($rawValue === null || $rawValue === '');
+
+            if ($isEmpty && !$context['showEmpty']) {
+                continue;
+            }
+
+            $formField = [
+                'id' => (string) $fieldId,
+                'type' => 'text',
+                'label' => $this->getDynamicFieldLabel($fieldId, $swpmField),
+            ];
+
+            $displayValue = $isEmpty
+                ? $context['emptyText']
+                : $this->applyHtmlFieldValue($rawValue, $formField, $context['formData']);
+
+            $output .= $this->renderDataField($formField['label'], $displayValue, $formField, $context['layout'], $isEmpty);
+        }
+
+        return $output;
+    }
+
+    private function getDynamicFieldLabel(string|int $fieldId, string $swpmField): string {
+        $fieldId = (string) $fieldId;
+
+        if (isset($this->formFields[$fieldId]['label']) && $this->formFields[$fieldId]['label'] !== '') {
+            return (string) $this->formFields[$fieldId]['label'];
+        }
+
+        $fieldKey = preg_replace('/^(custom_|swpm_)/', '', $swpmField);
+
+        return ucwords(str_replace('_', ' ', (string) $fieldKey));
     }
     
     /**
@@ -807,7 +860,7 @@ class ProfileShortcode {
         $memberId = $member['member_id'] ?? 0;
         if (!$memberId) return null;
 
-        return $this->swpmService->getCustomFieldValue($member, $key);
+        return $this->swpmService->getCustomFieldValue($member, $key, true);
     }
     
     private function formatValue(?string $value, string $field, string $format = ''): ?string {

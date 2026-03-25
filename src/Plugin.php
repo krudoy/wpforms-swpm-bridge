@@ -67,6 +67,8 @@ final class Plugin {
      * Initialize admin components.
      */
     private function initAdmin(): void {
+        add_action('admin_init', [$this, 'loadWpformsTemplates'], 20);
+
         // Settings page
         $settingsPage = new SettingsPage();
         $settingsPage->init();
@@ -77,6 +79,25 @@ final class Plugin {
         
         // Enqueue admin assets
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
+    }
+
+    /**
+     * Load native WPForms template classes provided by this plugin.
+     */
+    public function loadWpformsTemplates(): void {
+        if (!class_exists('WPForms_Template', false)) {
+            return;
+        }
+
+        foreach ([
+            SWPM_WPFORMS_PLUGIN_DIR . 'templates/class-registration.php',
+            SWPM_WPFORMS_PLUGIN_DIR . 'templates/class-update-profile.php',
+            SWPM_WPFORMS_PLUGIN_DIR . 'templates/class-change-password.php',
+        ] as $templateFile) {
+            if (file_exists($templateFile)) {
+                require_once $templateFile;
+            }
+        }
     }
     
     /**

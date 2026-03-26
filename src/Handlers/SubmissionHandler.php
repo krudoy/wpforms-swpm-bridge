@@ -105,8 +105,7 @@ class SubmissionHandler {
             );
         $loginUrl = wp_login_url(get_permalink() ?: home_url('/'));
 
-        $formData['fields'] = [];
-        $formData['settings']['description'] = sprintf(
+        $noticeMarkup = sprintf(
             '<div class="swpm-profile-not-logged-in swpm-wpforms-profile-login-notice swpm-wpforms-profile-login-notice--shortcode">'
             . '<p class="swpm-wpforms-profile-login-notice__message swpm-wpforms-profile-login-notice__message--shortcode">%s</p>'
             . '<a href="%s" class="swpm-wpforms-profile-login-notice__button swpm-wpforms-profile-login-notice__button--shortcode">%s</a>'
@@ -115,6 +114,16 @@ class SubmissionHandler {
             esc_url($loginUrl),
             esc_html__('Login', 'wpforms-swpm-bridge')
         );
+
+        $formData['fields'] = [
+            'swpm_logged_out_notice' => [
+                'id' => 'swpm_logged_out_notice',
+                'type' => 'html',
+                'label' => '',
+                'code' => $noticeMarkup,
+            ],
+        ];
+        $formData['settings']['description'] = '';
 
         return $formData;
     }

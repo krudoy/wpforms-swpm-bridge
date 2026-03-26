@@ -78,6 +78,11 @@
     font-weight: 600;
 }
 
+.swpm-update-profile-logged-out .wpforms-submit-container,
+.swpm-update-profile-logged-out button[type="submit"] {
+    display: none !important;
+}
+
 /* ==========================================================================
    WPForms Style Layout (matches WPForms form preview)
    ========================================================================== */
